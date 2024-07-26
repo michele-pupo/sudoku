@@ -158,11 +158,6 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  position: relative;
-  background-image: url('/sudoku-fallback.jpg'); /* Percorso dell'immagine */
-  background-size: cover;
-  background-position: center; /* Centra l'immagine */
-  background-color: rgba(255, 255, 255, 0.5); /* Colore di sfondo bianco con trasparenza del 50% */
 }
 
 .sudoku-cell:nth-child(3n) {
