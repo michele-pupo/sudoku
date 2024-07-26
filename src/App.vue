@@ -98,7 +98,7 @@ export default {
     handleInput(rowIndex, colIndex, value) {
       const num = parseInt(value);
       if (isNaN(num) || num < 1 || num > 9) {
-        this.grid[rowIndex][colIndex] = null; // Reset the cell if invalid input
+        this.grid[rowIndex][colIndex] = null; // Resetto le celle se l'imput non è valido
       } else {
         this.grid[rowIndex][colIndex] = num;
       }
@@ -159,8 +159,10 @@ export default {
   justify-content: center;
   align-items: center;
   position: relative;
-  background-image: url('path-to-your-image.png'); /* Percorso all'immagine di default */
+  background-image: url('/sudoku-fallback.jpg'); /* Percorso dell'immagine */
   background-size: cover;
+  background-position: center; /* Centra l'immagine */
+  background-color: rgba(255, 255, 255, 0.5); /* Colore di sfondo bianco con trasparenza del 50% */
 }
 
 .sudoku-cell:nth-child(3n) {
