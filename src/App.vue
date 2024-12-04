@@ -80,20 +80,52 @@ export default {
       return true;
     },
 
-    solve() {
+    async solve() {
       if (!this.checkGridValidity()) {
         this.errorMessage = 'Invalid Sudoku grid! Please fix duplicate numbers.';
         return;
       }
 
-      const gridCopy = JSON.parse(JSON.stringify(this.grid)); // Crea una copia della griglia
-      if (this.solveSudoku(gridCopy)) {
-        this.grid = gridCopy; // Aggiorna la griglia solo se è stata trovata una soluzione
-        this.errorMessage = ''; // Rimuovi il messaggio di errore
-      } else {
+      const gridCopy = JSON.parse(JSON.stringify(this.grid)); // Copia la griglia corrente
+      this.errorMessage = ''; // Resetta eventuali messaggi di errore
+
+      // Risolve il Sudoku senza animazione
+      const solved = this.solveSudoku(gridCopy);
+      if (!solved) {
         alert("No solution exists!");
+        return;
+      }
+
+      // Mostra l'animazione progressiva
+      await this.animateSpinningNumbers(gridCopy);
+    },
+
+    async animateSpinningNumbers(solvedGrid) {
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (this.initialNumbers[row][col] === null) { // Modifica solo celle vuote
+            await this.spinToCorrectNumber(row, col, solvedGrid[row][col]); // Animazione per la cella
+          }
+        }
       }
     },
+
+    async spinToCorrectNumber(row, col, correctNumber) {
+      let num = 1;
+
+      while (num !== correctNumber) {
+        this.grid[row][col] = num; // Mostra il numero animato
+        await this.sleep(50); // Breve pausa per l'animazione
+        num = (num % 9) + 1; // Passa al numero successivo
+      }
+
+      // Una volta trovato il numero corretto, lo evidenzia
+       this.grid[row][col] = correctNumber;
+    },
+
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  },
 
     handleInput(rowIndex, colIndex, value) {
       const num = parseInt(value);
@@ -122,6 +154,7 @@ export default {
             max="9"
             v-model.number="grid[rowIndex][colIndex]"
             @input="handleInput(rowIndex, colIndex, $event.target.value)"
+            :class="{ animate: animationStates[rowIndex][colIndex], correct: initialNumbers[rowIndex][colIndex] !== null || grid[rowIndex][colIndex] !== null }"
             :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
             placeholder=""
           />
@@ -139,14 +172,47 @@ export default {
 </template>
 
 <style>
+
+body {
+  background: linear-gradient(135deg, #a8edea, #fed6e3);
+  font-family: 'Poppins', sans-serif;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+h1 {
+  font-family: 'Poppins', sans-serif;
+  color: #28a745;
+  text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+}
+
+.text-danger {
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.2rem;
+  background: #fdecea;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
 .sudoku-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(9, 1fr);
-  gap: 1px; /* Spazio tra le celle */
-  width: 500px; /* Larghezza totale della griglia */
-  height: 500px; /* Altezza totale della griglia */
+  gap: 2px;
+  width: 600px;
+  height: 600px;
   margin: auto;
+  background: #333; /* Colore di sfondo per evidenziare i bordi */
+  border: 5px solid #333;
+  border-radius: 10px; /* Angoli arrotondati */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); /* Ombra */
 }
 
 .sudoku-row {
@@ -154,10 +220,12 @@ export default {
 }
 
 .sudoku-cell {
-  border: 1px solid black;
+  background: #f5f5f5; /* Sfondo chiaro per le celle */
   display: flex;
   justify-content: center;
   align-items: center;
+  font-family: 'Roboto', sans-serif; /* Font moderno */
+  border: 1px solid #ddd;
 }
 
 .sudoku-cell:nth-child(3n) {
@@ -181,11 +249,17 @@ export default {
   height: 100%;
   text-align: center;
   border: none;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #333; /* Colore scuro per i numeri */
+  background: transparent;
+}
+
+.sudoku-cell input:focus {
+  background: #fffae6; /* Cambia colore quando si interagisce */
+  border-radius: 5px;
   outline: none;
-  padding: 0;
-  font-size: 1.5rem; /* Dimensione del testo */
-  box-sizing: border-box;
-  background: transparent; /* Rende lo sfondo dell'input trasparente per vedere l'immagine */
+  transition: 0.2s ease-in-out;
 }
 
 /* Rimuove le freccette dagli input numerici */
@@ -201,6 +275,61 @@ input[type=number] {
 
 button {
   margin: 10px;
+}
+
+button {
+  padding: 12px 20px;
+  font-size: 1.2rem;
+  font-family: 'Roboto', sans-serif;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+button:hover {
+  background-color: #45a049;
+  transform: scale(1.05);
+}
+
+.btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: rotateX(90deg);
+    opacity: 0.5;
+  }
+  100% {
+    transform: rotateX(180deg);
+    opacity: 1;
+  }
+}
+
+.sudoku-cell input.animate {
+  animation: spin 0.1s linear infinite;
+}
+
+.sudoku-cell input.correct {
+  animation: none;
+  color: green;
+  font-weight: bold;
 }
 
 </style>
