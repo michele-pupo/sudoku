@@ -11,7 +11,9 @@ export default {
       // Messaggio di errore
       errorMessage: '',
       // Flag per interrompere la risoluzione
-      isSolving: false
+      isSolving: false,
+      //Flag per tracciare se il sudoku è stato risolto
+      isSolved: false,
     };
   },
 
@@ -21,10 +23,16 @@ export default {
 
   methods: {
     resetGrid() {
-      this.isSolving = false; // Interrompe qualsiasi operazione in corso
-      this.grid = Array(9).fill(null).map(() => Array(9).fill(null));
+      // Reset della griglia
       this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
-      this.errorMessage = ''; // Resetta il messaggio di errore
+      this.grid = JSON.parse(JSON.stringify(this.initialNumbers));
+
+      // Resetta i messaggi di errore
+      this.errorMessage = '';
+
+      // Riabilita gli input e il pulsante "Solve Sudoku"
+      this.isSolving = false;  // Permette di inserire numeri
+      this.isSolved = false;   // Permette di risolvere di nuovo il Sudoku
     },
 
     isValid(grid, row, col, num) {
@@ -102,6 +110,7 @@ export default {
       // Mostra l'animazione progressiva
       await this.animateSpinningNumbers(gridCopy);
       this.isSolving = false; // Riabilita gli input dopo che la risoluzione è terminata
+      this.isSolved = true; // Imposta lo stato a "risolto"
     },
 
     async animateSpinningNumbers(solvedGrid) {
@@ -161,7 +170,7 @@ export default {
             max="9"
             v-model.number="grid[rowIndex][colIndex]"
             @input="handleInput(rowIndex, colIndex, $event.target.value)"
-            :disabled="isSolving"
+            :disabled="isSolving || isSolved" 
             :class="{
               'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
               'user-input': initialNumbers[rowIndex][colIndex] !== null
@@ -173,8 +182,24 @@ export default {
       </div>
     </div>
     <div class="d-flex justify-content-center pt-5">
-      <button class="btn btn-success" @click="solve">Solve Sudoku</button>
-      <button class="btn btn-danger" @click="resetGrid">Reset Sudoku</button>
+      <!-- Mostra il pulsante "Solve Sudoku" solo se il Sudoku non è stato risolto -->
+      <button 
+        v-if="!isSolved" 
+        class="btn btn-success solve-btn" 
+        @click="solve"
+        :class="{ hide: isSolving }"
+      >
+        Solve Sudoku
+      </button>
+
+      <!-- Mostra il pulsante "Reset Sudoku" solo dopo che il Sudoku è stato risolto -->
+      <button 
+        v-if="isSolved"
+        class="btn btn-danger reset-btn" 
+        @click="resetGrid"
+      >
+        Reset Sudoku
+      </button>
     </div>
     <div v-if="errorMessage">
       <h3 class="text-danger text-uppercase fw-bold mt-4 text-center">{{ errorMessage }}</h3>
@@ -210,6 +235,14 @@ h1 {
   padding: 10px;
   border-radius: 5px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: fixed; /* Fissa il messaggio */
+  bottom: 50px; /* Posiziona in basso */
+  left: 50%; /* Centra orizzontalmente */
+  transform: translateX(-50%); /* Centra correttamente */
+  z-index: 100; /* Assicura che il messaggio sia visibile sopra gli altri elementi */
+  width: auto;
+  max-width: 90%; /* Limita la larghezza massima */
+  text-align: center;
 }
 
 .sudoku-grid {
@@ -341,6 +374,53 @@ button:hover {
   animation: none;
   color: green;
   font-weight: bold;
+}
+
+/* Animazione per il pulsante "Solve Sudoku" */
+@keyframes hideButton {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+
+.solve-btn.hide {
+  animation: hideButton 0.5s forwards;
+}
+
+/* Allinea il pulsante "Reset Sudoku" al centro dopo che "Solve" è stato premuto */
+.reset-btn {
+  animation: moveToCenter 0.5s ease-in-out;
+  margin-top: 10px;
+}
+
+@keyframes moveToCenter {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.2);
+  }
+}
+
+/* Animazione per il pulsante Solve Sudoku */
+@keyframes showButton {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.solve-btn {
+  animation: showButton 0.5s ease-in-out;
 }
 
 </style>
