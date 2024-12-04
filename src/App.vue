@@ -14,6 +14,9 @@ export default {
       isSolving: false,
       //Flag per tracciare se il sudoku è stato risolto
       isSolved: false,
+      //Array per tenere traccia delle celle con errori
+      errorCells:[],
+      hasError: false,
     };
   },
 
@@ -27,8 +30,10 @@ export default {
       this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
       this.grid = JSON.parse(JSON.stringify(this.initialNumbers));
 
-      // Resetta i messaggi di errore
-      this.errorMessage = '';
+      // Resetta gli errori
+      this.errorCells = [];
+      this.hasError = false;
+      this.errorMessage = ''; // Rimuovi eventuali messaggi di errore
 
       // Riabilita gli input e il pulsante "Solve Sudoku"
       this.isSolving = false;  // Permette di inserire numeri
@@ -47,12 +52,27 @@ export default {
 
     checkGridValidity() {
       const isValid = (arr) => arr.filter(num => num !== null).length !== new Set(arr.filter(num => num !== null)).size;
-      
+      this.errorCells = []; // Resetta la lista degli errori
+
+      // Controlla le righe e colonne
       for (let i = 0; i < 9; i++) {
-        if (isValid(this.grid[i])) return false; // Controlla righe
-        if (isValid(this.grid.map(row => row[i]))) return false; // Controlla colonne
+        if (isValid(this.grid[i])) { // Se ci sono numeri duplicati in una riga
+          for (let col = 0; col < 9; col++) {
+            if (this.grid[i][col] !== null) {
+              this.errorCells.push({ row: i, col }); // Aggiungi la cella all'array degli errori
+            }
+          }
+        }
+        if (isValid(this.grid.map(row => row[i]))) { // Se ci sono numeri duplicati in una colonna
+          for (let row = 0; row < 9; row++) {
+            if (this.grid[row][i] !== null) {
+              this.errorCells.push({ row, col: i }); // Aggiungi la cella all'array degli errori
+            }
+          }
+        }
       }
-      
+
+      // Controlla i quadrati 3x3
       for (let boxRow = 0; boxRow < 9; boxRow += 3) {
         for (let boxCol = 0; boxCol < 9; boxCol += 3) {
           let box = [];
@@ -61,11 +81,19 @@ export default {
               box.push(this.grid[boxRow + row][boxCol + col]);
             }
           }
-          if (isValid(box)) return false; // Controlla quadrati 3x3
+          if (isValid(box)) {
+            for (let row = 0; row < 3; row++) {
+              for (let col = 0; col < 3; col++) {
+                if (this.grid[boxRow + row][boxCol + col] !== null) {
+                  this.errorCells.push({ row: boxRow + row, col: boxCol + col }); // Aggiungi la cella all'array degli errori
+                }
+              }
+            }
+          }
         }
       }
 
-      return true;
+      return this.errorCells.length === 0; // Restituisce false se ci sono errori
     },
 
     solveSudoku(grid) {
@@ -92,6 +120,7 @@ export default {
     async solve() {
       if (!this.checkGridValidity()) {
         this.errorMessage = 'Invalid Sudoku grid! Please fix duplicate numbers.';
+        this.hasError = true; // Imposta hasError a true
         return;
       }
 
@@ -111,6 +140,7 @@ export default {
       await this.animateSpinningNumbers(gridCopy);
       this.isSolving = false; // Riabilita gli input dopo che la risoluzione è terminata
       this.isSolved = true; // Imposta lo stato a "risolto"
+      this.hasError = false; // Imposta hasError a false se la risoluzione è corretta
     },
 
     async animateSpinningNumbers(solvedGrid) {
@@ -145,12 +175,13 @@ export default {
     handleInput(rowIndex, colIndex, value) {
       const num = parseInt(value);
       if (isNaN(num) || num < 1 || num > 9) {
-        this.grid[rowIndex][colIndex] = null; // Resetto le celle se l'imput non è valido
+        this.grid[rowIndex][colIndex] = null; // Resetto le celle se l'input non è valido
       } else {
         this.grid[rowIndex][colIndex] = num;
       }
       this.initialNumbers[rowIndex][colIndex] = this.grid[rowIndex][colIndex];
       this.errorMessage = ''; // Rimuovi il messaggio di errore
+      this.hasError = false; // Ripristina il flag hasError
     }
   }
 };
@@ -170,10 +201,11 @@ export default {
             max="9"
             v-model.number="grid[rowIndex][colIndex]"
             @input="handleInput(rowIndex, colIndex, $event.target.value)"
-            :disabled="isSolving || isSolved" 
+            :disabled="isSolving || isSolved"
             :class="{
               'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
-              'user-input': initialNumbers[rowIndex][colIndex] !== null
+              'user-input': initialNumbers[rowIndex][colIndex] !== null,
+              'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex) // Aggiungi la classe 'error' per le celle con errore
             }"
             :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
             placeholder=""
@@ -184,7 +216,7 @@ export default {
     <div class="d-flex justify-content-center pt-5">
       <!-- Mostra il pulsante "Solve Sudoku" solo se il Sudoku non è stato risolto -->
       <button 
-        v-if="!isSolved" 
+        v-if="!isSolved && !hasError" 
         class="btn btn-success solve-btn" 
         @click="solve"
         :class="{ hide: isSolving }"
@@ -192,14 +224,14 @@ export default {
         Solve Sudoku
       </button>
 
-      <!-- Mostra il pulsante "Reset Sudoku" solo dopo che il Sudoku è stato risolto -->
+      <!-- Mostra il pulsante "Reset Sudoku" solo dopo che il Sudoku è stato risolto o se c'è un errore -->
       <button 
-        v-if="isSolved"
+        v-if="isSolved || hasError"
         class="btn btn-danger reset-btn" 
         @click="resetGrid"
       >
         Reset Sudoku
-      </button>
+    </button>
     </div>
     <div v-if="errorMessage">
       <h3 class="text-danger text-uppercase fw-bold mt-4 text-center">{{ errorMessage }}</h3>
@@ -421,6 +453,23 @@ button:hover {
 
 .solve-btn {
   animation: showButton 0.5s ease-in-out;
+}
+
+@keyframes blink {
+  0% {
+    background-color: #ffcccc; /* Colore rosso chiaro */
+  }
+  50% {
+    background-color: #ff6666; /* Colore rosso scuro */
+  }
+  100% {
+    background-color: #ffcccc;
+  }
+}
+
+.sudoku-cell input.error {
+  animation: blink 1s infinite; /* Lampeggia ogni 1 secondo */
+  border: 2px solid red; /* Aggiunge un bordo rosso per maggiore visibilità */
 }
 
 </style>
