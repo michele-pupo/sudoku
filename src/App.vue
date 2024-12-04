@@ -2,14 +2,16 @@
 export default {
   data() {
     return {
-      // Griglia iniziale del sudoku, con celle vuote
-      initialGrid: Array(9).fill(null).map(() => Array(9).fill(null)),
       // Griglia corrente da visualizzare e modificare
       grid: [],
       // Griglia che contiene i numeri iniziali
       initialNumbers: Array(9).fill(null).map(() => Array(9).fill(null)),
+      // Griglia per controllare l'animazione di ogni cella
+      animationStates: Array(9).fill(null).map(() => Array(9).fill(false)),
       // Messaggio di errore
-      errorMessage: ''
+      errorMessage: '',
+      // Flag per interrompere la risoluzione
+      isSolving: false
     };
   },
 
@@ -19,10 +21,9 @@ export default {
 
   methods: {
     resetGrid() {
-      // Genera una griglia iniziale vuota
-      this.initialGrid = Array(9).fill(null).map(() => Array(9).fill(null));
-      this.grid = JSON.parse(JSON.stringify(this.initialGrid));
-      this.initialNumbers = JSON.parse(JSON.stringify(this.initialGrid));
+      this.isSolving = false; // Interrompe qualsiasi operazione in corso
+      this.grid = Array(9).fill(null).map(() => Array(9).fill(null));
+      this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
       this.errorMessage = ''; // Resetta il messaggio di errore
     },
 
@@ -88,23 +89,27 @@ export default {
 
       const gridCopy = JSON.parse(JSON.stringify(this.grid)); // Copia la griglia corrente
       this.errorMessage = ''; // Resetta eventuali messaggi di errore
+      this.isSolving = true; // Disabilita gli input
 
       // Risolve il Sudoku senza animazione
       const solved = this.solveSudoku(gridCopy);
       if (!solved) {
         alert("No solution exists!");
+        this.isSolving = false; // Riabilita gli input
         return;
       }
 
       // Mostra l'animazione progressiva
       await this.animateSpinningNumbers(gridCopy);
+      this.isSolving = false; // Riabilita gli input dopo che la risoluzione è terminata
     },
 
     async animateSpinningNumbers(solvedGrid) {
       for (let row = 0; row < 9; row++) {
         for (let col = 0; col < 9; col++) {
-          if (this.initialNumbers[row][col] === null) { // Modifica solo celle vuote
-            await this.spinToCorrectNumber(row, col, solvedGrid[row][col]); // Animazione per la cella
+          if (!this.isSolving) return; // Interrompe l'animazione se il flag è falso
+          if (this.initialNumbers[row][col] === null) {
+            await this.spinToCorrectNumber(row, col, solvedGrid[row][col]);
           }
         }
       }
@@ -114,6 +119,7 @@ export default {
       let num = 1;
 
       while (num !== correctNumber) {
+        if (!this.isSolving) return; // Interrompe l'animazione se il flag è falso
         this.grid[row][col] = num; // Mostra il numero animato
         await this.sleep(50); // Breve pausa per l'animazione
         num = (num % 9) + 1; // Passa al numero successivo
@@ -139,6 +145,7 @@ export default {
     }
   }
 };
+
 </script>
 
 <template>
@@ -154,7 +161,11 @@ export default {
             max="9"
             v-model.number="grid[rowIndex][colIndex]"
             @input="handleInput(rowIndex, colIndex, $event.target.value)"
-            :class="{ animate: animationStates[rowIndex][colIndex], correct: initialNumbers[rowIndex][colIndex] !== null || grid[rowIndex][colIndex] !== null }"
+            :disabled="isSolving"
+            :class="{
+              'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
+              'user-input': initialNumbers[rowIndex][colIndex] !== null
+            }"
             :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
             placeholder=""
           />
