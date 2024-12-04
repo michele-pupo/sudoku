@@ -243,6 +243,7 @@ export default {
 
 body {
   background: linear-gradient(135deg, #a8edea, #fed6e3);
+  animation: gradientAnimation 10s infinite alternate;
   font-family: 'Poppins', sans-serif;
   margin: 0;
   padding: 0;
@@ -251,6 +252,15 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+}
+
+@keyframes gradientAnimation {
+  0% {
+    background: linear-gradient(135deg, #a8edea, #fed6e3);
+  }
+  100% {
+    background: linear-gradient(135deg, #fed6e3, #a8edea);
+  }
 }
 
 h1 {
@@ -470,6 +480,22 @@ button:hover {
 .sudoku-cell input.error {
   animation: blink 1s infinite; /* Lampeggia ogni 1 secondo */
   border: 2px solid red; /* Aggiunge un bordo rosso per maggiore visibilità */
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 1);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+}
+
+.sudoku-cell input.correct {
+  animation: glow 1s ease-out infinite;
 }
 
 </style>
