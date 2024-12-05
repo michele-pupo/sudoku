@@ -17,11 +17,18 @@ export default {
       //Array per tenere traccia delle celle con errori
       errorCells:[],
       hasError: false,
+      //Cella attualmente selezionata
+      focusedCell: { row: 0, col: 0 },
     };
   },
 
   mounted() {
     this.resetGrid();
+    window.addEventListener('keydown', this.handleArrowKeys); // Assegna il listener
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.handleArrowKeys); // Rimuovi il listener
   },
 
   methods: {
@@ -38,6 +45,91 @@ export default {
       // Riabilita gli input e il pulsante "Solve Sudoku"
       this.isSolving = false;  // Permette di inserire numeri
       this.isSolved = false;   // Permette di risolvere di nuovo il Sudoku
+      this.focusedCell = { row: 0, col: 0 }; // Resetta la cella selezionata
+    },
+
+    handleArrowKeys(event) {
+      if (this.isSolving || this.isSolved) return; // Non consentire movimenti durante la risoluzione o se il Sudoku è risolto
+      const { row, col } = this.focusedCell;
+      switch (event.key) {
+        case 'ArrowUp':
+          if (row > 0) this.focusedCell.row--;
+          break;
+        case 'ArrowDown':
+          if (row < 8) this.focusedCell.row++;
+          break;
+        case 'ArrowLeft':
+          if (col > 0) this.focusedCell.col--;
+          break;
+        case 'ArrowRight':
+          if (col < 8) this.focusedCell.col++;
+          break;
+        default:
+          return; // Ignora altri tasti
+      }
+      // Sposta il focus sulla nuova cella
+      this.focusCell(this.focusedCell.row, this.focusedCell.col);
+    },
+
+    handleKeyDown(event, rowIndex, colIndex) {
+      const { key } = event;
+
+      // Impedisce il comportamento predefinito per le frecce su e giù
+      if (key === "ArrowUp" || key === "ArrowDown") {
+        event.preventDefault();
+      }
+
+      switch (key) {
+        case "ArrowRight":
+          // Vai a destra, se possibile
+          if (colIndex < 8) {
+            this.focusCell(rowIndex, colIndex + 1);
+          }
+          break;
+        case "ArrowLeft":
+          // Vai a sinistra, se possibile
+          if (colIndex > 0) {
+            this.focusCell(rowIndex, colIndex - 1);
+          }
+          break;
+        case "ArrowDown":
+          // Vai giù, se possibile
+          if (rowIndex < 8) {
+            this.focusCell(rowIndex + 1, colIndex);
+          }
+          break;
+        case "ArrowUp":
+          // Vai su, se possibile
+          if (rowIndex > 0) {
+            this.focusCell(rowIndex - 1, colIndex);
+          }
+          break;
+      }
+    },
+
+    focusCell(row, col) {
+      // Trova l'input e mettilo a fuoco
+      this.$nextTick(() => {
+        const input = this.$el.querySelector(
+          `.sudoku-row:nth-child(${row + 1}) .sudoku-cell:nth-child(${col + 1}) input`
+        );
+        if (input) {
+          input.focus();
+        }
+      });
+    },
+
+    handleInput(rowIndex, colIndex, value) {
+      const num = parseInt(value);
+      if (isNaN(num) || num < 1 || num > 9) {
+        this.grid[rowIndex][colIndex] = null;
+      } else {
+        this.grid[rowIndex][colIndex] = num;
+      }
+      this.initialNumbers[rowIndex][colIndex] = this.grid[rowIndex][colIndex];
+      this.errorMessage = '';
+      this.hasError = false;
+      this.focusedCell = { row: rowIndex, col: colIndex }; // Aggiorna la cella selezionata
     },
 
     isValid(grid, row, col, num) {
@@ -193,23 +285,29 @@ export default {
     <h1 class="pb-5 text-uppercase text-center display-1 fw-bold text-success">Sudoku</h1>
     <div class="sudoku-grid">
       <div class="sudoku-row" v-for="(row, rowIndex) in grid" :key="rowIndex">
-        <div class="sudoku-cell" v-for="(cell, colIndex) in row" :key="colIndex">
-          <input
-            class="fw-bold"
-            type="number"
-            min="1"
-            max="9"
-            v-model.number="grid[rowIndex][colIndex]"
-            @input="handleInput(rowIndex, colIndex, $event.target.value)"
-            :disabled="isSolving || isSolved"
-            :class="{
-              'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
-              'user-input': initialNumbers[rowIndex][colIndex] !== null,
-              'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex)
-            }"
-            :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
-            placeholder=""
-          />
+        <div
+          class="sudoku-cell"
+          v-for="(cell, colIndex) in row"
+          :key="colIndex"
+          :class="{ 'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex }"
+        >
+        <input
+          class="fw-bold"
+          type="number"
+          min="1"
+          max="9"
+          v-model.number="grid[rowIndex][colIndex]"
+          @input="handleInput(rowIndex, colIndex, $event.target.value)"
+          @keydown="handleKeyDown($event, rowIndex, colIndex)"
+          :disabled="isSolving || isSolved"
+          :class="{
+            'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
+            'user-input': initialNumbers[rowIndex][colIndex] !== null,
+            'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex)
+          }"
+          :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
+          placeholder=""
+        />
         </div>
       </div>
     </div>
