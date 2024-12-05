@@ -297,8 +297,8 @@ h1 {
   margin: auto;
   background: #333; /* Colore di sfondo per evidenziare i bordi */
   border: 5px solid #333;
-  border-radius: 10px; /* Angoli arrotondati */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); /* Ombra */
+  border-radius: 15px; /* Angoli arrotondati */
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.1); /* Ombra */
 }
 
 .sudoku-row {
@@ -342,6 +342,14 @@ h1 {
   background: transparent;
 }
 
+.sudoku-cell input:hover {
+  background-color: #e0f7fa; /* Colore blu chiaro per evidenziare la cella */
+  transform: scale(1.05); /* Leggera espansione */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Ombra leggera */
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
 .sudoku-cell input:focus {
   background: #fffae6; /* Cambia colore quando si interagisce */
   border-radius: 5px;
@@ -349,19 +357,10 @@ h1 {
   transition: 0.2s ease-in-out;
 }
 
-/* Rimuove le freccette dagli input numerici */
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-input[type=number] {
-  -moz-appearance: textfield;
-}
-
-button {
-  margin: 10px;
 }
 
 button {
@@ -372,12 +371,13 @@ button {
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.15);
 }
 
 button:hover {
   background-color: #45a049;
   transform: scale(1.05);
+  transform: translateY(-2px); /* Effetto sollevamento */
 }
 
 .btn-success {
@@ -392,6 +392,7 @@ button:hover {
 
 .btn-danger:hover {
   background-color: #c82333;
+  transform: translateY(-2px); /* Effetto sollevamento */
 }
 
 @keyframes spin {
@@ -479,19 +480,36 @@ button:hover {
 }
 
 .sudoku-cell input.error {
-  animation: blink 1s infinite; /* Lampeggia ogni 1 secondo */
-  border: 2px solid red; /* Aggiunge un bordo rosso per maggiore visibilità */
+  background: linear-gradient(135deg, #ff8a80, #ff5252);
+  border: none;
+  color: white;
+  animation: shake 0.3s ease-in-out, glowError 1s infinite;
 }
 
-@keyframes glow {
-  0% {
-    box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
   }
   50% {
-    box-shadow: 0 0 20px rgba(255, 255, 255, 1);
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-5px);
+  }
+}
+
+@keyframes glowError {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 82, 82, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 82, 82, 1);
   }
   100% {
-    box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 10px rgba(255, 82, 82, 0.5);
   }
 }
 
