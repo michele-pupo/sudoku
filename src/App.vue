@@ -373,7 +373,7 @@ h1 {
   text-transform: uppercase;
   text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
   animation: subtleGlow 2s infinite alternate;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 /* Animazione più discreta */
@@ -394,7 +394,7 @@ h1 {
   border-radius: 5px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   position: fixed; /* Fissa il messaggio */
-  bottom: 50px; /* Posiziona in basso */
+  bottom: 10px; /* Posiziona in basso */
   left: 50%; /* Centra orizzontalmente */
   transform: translateX(-50%); /* Centra correttamente */
   z-index: 100; /* Assicura che il messaggio sia visibile sopra gli altri elementi */
