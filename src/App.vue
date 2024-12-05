@@ -364,8 +364,26 @@ body {
 h1 {
   font-family: 'Poppins', sans-serif;
   color: #28a745;
+  background: linear-gradient(90deg, #28a745 40%, #1d72b8 60%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 2.5rem;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
   text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  animation: subtleGlow 2s infinite alternate;
   margin-bottom: 20px;
+}
+
+/* Animazione più discreta */
+@keyframes subtleGlow {
+  0% {
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), 0 0 10px #28a745;
+  }
+  100% {
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), 0 0 10px #1d72b8;
+  }
 }
 
 .text-danger {
