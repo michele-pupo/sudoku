@@ -205,7 +205,7 @@ export default {
             :class="{
               'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
               'user-input': initialNumbers[rowIndex][colIndex] !== null,
-              'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex) // Aggiungi la classe 'error' per le celle con errore
+              'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex)
             }"
             :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
             placeholder=""
@@ -242,9 +242,9 @@ export default {
 <style>
 
 body {
+  font-family: 'Roboto Mono', monospace;
   background: linear-gradient(135deg, #a8edea, #fed6e3);
   animation: gradientAnimation 10s infinite alternate;
-  font-family: 'Poppins', sans-serif;
   margin: 0;
   padding: 0;
   display: flex;
@@ -331,6 +331,7 @@ h1 {
 }
 
 .sudoku-cell input {
+  font-family: 'Roboto Mono', monospace;
   width: 100%;
   height: 100%;
   text-align: center;
@@ -498,4 +499,8 @@ button:hover {
   animation: glow 1s ease-out infinite;
 }
 
+.sudoku-cell input.user-input {
+  background-color: #507687; /* Colore grigio chiaro */
+  transition: background-color 0.3s ease; /* Effetto di transizione morbida */
+}
 </style>
