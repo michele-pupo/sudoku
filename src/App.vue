@@ -6,6 +6,8 @@ export default {
       grid: [],
       // Griglia che contiene i numeri iniziali
       initialNumbers: Array(9).fill(null).map(() => Array(9).fill(null)),
+      // Griglia con la soluzione completa
+      completeSolution: Array(9).fill(null).map(() => Array(9).fill(null)),
       // Griglia per controllare l'animazione di ogni cella
       animationStates: Array(9).fill(null).map(() => Array(9).fill(false)),
       // Messaggio di errore
@@ -19,6 +21,10 @@ export default {
       hasError: false,
       //Cella attualmente selezionata
       focusedCell: { row: 0, col: 0 },
+      // Livello di difficoltà corrente
+      difficultyLevel: 'complete',
+      // Indica se la soluzione completa è stata calcolata
+      hasSolution: false,
     };
   },
 
@@ -36,6 +42,7 @@ export default {
       // Reset della griglia
       this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
       this.grid = JSON.parse(JSON.stringify(this.initialNumbers));
+      this.completeSolution = Array(9).fill(null).map(() => Array(9).fill(null));
 
       // Resetta gli errori
       this.errorCells = [];
@@ -46,10 +53,11 @@ export default {
       this.isSolving = false;  // Permette di inserire numeri
       this.isSolved = false;   // Permette di risolvere di nuovo il Sudoku
       this.focusedCell = { row: 0, col: 0 }; // Resetta la cella selezionata
+      this.hasSolution = false; // Resetta lo stato della soluzione
     },
 
     handleArrowKeys(event) {
-      if (this.isSolving || this.isSolved) return; // Non consentire movimenti durante la risoluzione o se il Sudoku è risolto
+      if (this.isSolving) return; // Non consentire movimenti durante la risoluzione
       const { row, col } = this.focusedCell;
       switch (event.key) {
         case 'ArrowUp':
@@ -129,6 +137,7 @@ export default {
       this.initialNumbers[rowIndex][colIndex] = this.grid[rowIndex][colIndex];
       this.errorMessage = '';
       this.hasError = false;
+      this.hasSolution = false; // Resetta la soluzione quando l'utente modifica la griglia
       this.focusedCell = { row: rowIndex, col: colIndex }; // Aggiorna la cella selezionata
     },
 
@@ -209,40 +218,101 @@ export default {
       return true;
     },
 
-    async solve() {
-      if (!this.checkGridValidity()) {
-        this.errorMessage = 'Invalid Sudoku grid! Please fix duplicate numbers.';
-        this.hasError = true; // Imposta hasError a true
-        return;
-      }
-
-      const gridCopy = JSON.parse(JSON.stringify(this.grid)); // Copia la griglia corrente
-      this.errorMessage = ''; // Resetta eventuali messaggi di errore
-      this.isSolving = true; // Disabilita gli input
-
-      // Risolve il Sudoku senza animazione
-      const solved = this.solveSudoku(gridCopy);
-      if (!solved) {
-        alert("No solution exists!");
-        this.isSolving = false; // Riabilita gli input
-        return;
-      }
-
-      // Mostra l'animazione progressiva
-      await this.animateSpinningNumbers(gridCopy);
-      this.isSolving = false; // Riabilita gli input dopo che la risoluzione è terminata
-      this.isSolved = true; // Imposta lo stato a "risolto"
-      this.hasError = false; // Imposta hasError a false se la risoluzione è corretta
-    },
-
-    async animateSpinningNumbers(solvedGrid) {
+    // Ottiene le celle da risolvere in base alla difficoltà
+    getCellsToSolveByDifficulty(difficulty) {
+      if (!this.hasSolution) return [];
+      
+      let emptyCells = [];
+      
+      // Trova tutte le celle vuote
       for (let row = 0; row < 9; row++) {
         for (let col = 0; col < 9; col++) {
-          if (!this.isSolving) return; // Interrompe l'animazione se il flag è falso
           if (this.initialNumbers[row][col] === null) {
-            await this.spinToCorrectNumber(row, col, solvedGrid[row][col]);
+            emptyCells.push({ row, col });
           }
         }
+      }
+      
+      // Randomizza l'ordine delle celle per una soluzione più imprevedibile
+      for (let i = emptyCells.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [emptyCells[i], emptyCells[j]] = [emptyCells[j], emptyCells[i]];
+      }
+      
+      // Determina quante celle risolvere in base al livello di difficoltà
+      let totalEmptyCells = emptyCells.length;
+      let cellsToSolve = [];
+      
+      switch (difficulty) {
+        case 'easy':
+          // Risolvi il 75% delle celle (lasciando il 25% da risolvere all'utente)
+          cellsToSolve = emptyCells.slice(0, Math.ceil(totalEmptyCells * 0.75));
+          break;
+        case 'medium':
+          // Risolvi il 50% delle celle (lasciando il 50% da risolvere all'utente)
+          cellsToSolve = emptyCells.slice(0, Math.ceil(totalEmptyCells * 0.5));
+          break;
+        case 'hard':
+          // Risolvi il 25% delle celle (lasciando il 75% da risolvere all'utente)
+          cellsToSolve = emptyCells.slice(0, Math.ceil(totalEmptyCells * 0.25));
+          break;
+        case 'complete':
+          // Risolvi tutte le celle
+          cellsToSolve = emptyCells;
+          break;
+      }
+      
+      return cellsToSolve;
+    },
+
+    // Risolvi il sudoku con un livello di difficoltà specifico
+    async solveWithDifficulty(difficulty) {
+      if (!this.checkGridValidity()) {
+        this.errorMessage = 'Invalid Sudoku grid! Please fix duplicate numbers.';
+        this.hasError = true;
+        return;
+      }
+
+      this.difficultyLevel = difficulty;
+      this.errorMessage = '';
+      this.isSolving = true;
+
+      // Se non abbiamo già calcolato la soluzione completa, calcolala ora
+      if (!this.hasSolution) {
+        // Crea una copia della griglia per calcolare la soluzione completa
+        this.completeSolution = JSON.parse(JSON.stringify(this.grid));
+        const solved = this.solveSudoku(this.completeSolution);
+        
+        if (!solved) {
+          this.errorMessage = "No solution exists!";
+          this.hasError = true;
+          this.isSolving = false;
+          return;
+        }
+        
+        this.hasSolution = true;
+      }
+
+      // Ottieni le celle da risolvere in base al livello di difficoltà
+      const cellsToSolve = this.getCellsToSolveByDifficulty(difficulty);
+      
+      // Applica l'animazione solo alle celle che verranno risolte
+      await this.animateCells(cellsToSolve);
+      
+      this.isSolving = false;
+      
+      // Se abbiamo risolto tutte le celle, imposta lo stato a "risolto"
+      if (difficulty === 'complete') {
+        this.isSolved = true;
+      }
+      
+      this.hasError = false;
+    },
+
+    async animateCells(cellsToSolve) {
+      for (const cell of cellsToSolve) {
+        if (!this.isSolving) return; // Interrompe l'animazione se il flag è falso
+        await this.spinToCorrectNumber(cell.row, cell.col, this.completeSolution[cell.row][cell.col]);
       }
     },
 
@@ -257,27 +327,14 @@ export default {
       }
 
       // Una volta trovato il numero corretto, lo evidenzia
-       this.grid[row][col] = correctNumber;
+      this.grid[row][col] = correctNumber;
     },
 
-  sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  },
-
-    handleInput(rowIndex, colIndex, value) {
-      const num = parseInt(value);
-      if (isNaN(num) || num < 1 || num > 9) {
-        this.grid[rowIndex][colIndex] = null; // Resetto le celle se l'input non è valido
-      } else {
-        this.grid[rowIndex][colIndex] = num;
-      }
-      this.initialNumbers[rowIndex][colIndex] = this.grid[rowIndex][colIndex];
-      this.errorMessage = ''; // Rimuovi il messaggio di errore
-      this.hasError = false; // Ripristina il flag hasError
-    }
+    sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    },
   }
-};
-
+}
 </script>
 
 <template>
@@ -295,9 +352,10 @@ export default {
               :class="{
                 'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex,
                 'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex),
-                'border-right': (colIndex + 1) % 3 === 0 && colIndex !== 8,
-                'border-bottom': (rowIndex + 1) % 3 === 0 && rowIndex !== 8,
-                'user-cell': initialNumbers[rowIndex][colIndex] !== null
+                'right-border': (colIndex + 1) % 3 === 0 && colIndex < 8,
+                'bottom-border': (rowIndex + 1) % 3 === 0 && rowIndex < 8,
+                'user-cell': initialNumbers[rowIndex][colIndex] !== null,
+                'odd-block': Math.floor(rowIndex/3) % 2 === Math.floor(colIndex/3) % 2
               }"
             >
               <input
@@ -319,16 +377,25 @@ export default {
         </div>
       </div>
       
+      <div class="difficulty-selector" v-if="!isSolved && !hasError && !isSolving">
+        <p class="difficulty-text">Risolvi con livello di difficoltà:</p>
+        <div class="difficulty-buttons">
+          <button class="difficulty-btn easy" @click="solveWithDifficulty('easy')">
+            <span class="btn-text">Facile</span>
+          </button>
+          <button class="difficulty-btn medium" @click="solveWithDifficulty('medium')">
+            <span class="btn-text">Medio</span>
+          </button>
+          <button class="difficulty-btn hard" @click="solveWithDifficulty('hard')">
+            <span class="btn-text">Difficile</span>
+          </button>
+          <button class="difficulty-btn complete" @click="solveWithDifficulty('complete')">
+            <span class="btn-text">Completo</span>
+          </button>
+        </div>
+      </div>
+      
       <div class="controls">
-        <button 
-          v-if="!isSolved && !hasError" 
-          class="btn solve-btn" 
-          @click="solve"
-          :class="{ 'hide': isSolving }"
-        >
-          <span class="btn-text">Solve Sudoku</span>
-        </button>
-
         <button 
           v-if="isSolved || hasError"
           class="btn reset-btn" 
@@ -343,12 +410,16 @@ export default {
       </div>
       
       <div class="instructions">
-        <h3>How to Play</h3>
+        <h3>Come giocare</h3>
         <ul>
-          <li>Fill in numbers 1-9 in empty cells</li>
-          <li>Each row, column, and 3×3 box must contain numbers 1-9 without repetition</li>
-          <li>Use arrow keys to navigate the grid</li>
-          <li>Click "Solve Sudoku" to find the solution</li>
+          <li>Inserisci numeri da 1 a 9 nelle celle vuote</li>
+          <li>Ogni riga, colonna e riquadro 3×3 deve contenere i numeri da 1 a 9 senza ripetizioni</li>
+          <li>Usa i tasti freccia per navigare nella griglia</li>
+          <li>Scegli un livello di difficoltà per risolvere il sudoku</li>
+          <li><strong>Facile:</strong> risolve quasi tutto, lasciando poche celle</li>
+          <li><strong>Medio:</strong> risolve più celle, lasciando solo quelle più difficili</li>
+          <li><strong>Difficile:</strong> risolve solo le celle più semplici</li>
+          <li><strong>Completo:</strong> risolve l'intero puzzle</li>
         </ul>
       </div>
     </div>
@@ -425,34 +496,40 @@ body {
 
 .sudoku-grid {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(9, 1fr);
-  gap: 1px;
   background-color: #34495e;
-  border: 2px solid #34495e;
+  border: 3px solid #34495e;
   border-radius: 5px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
   aspect-ratio: 1 / 1;
   width: 100%;
   max-width: 550px;
 }
 
 .sudoku-row {
-  display: contents;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
 }
 
 .sudoku-cell {
   background-color: #f9f9f9;
   position: relative;
   transition: all 0.2s ease;
+  border: 1px solid #c4c4c4;
 }
 
-.sudoku-cell.border-right {
-  border-right: 2px solid #34495e;
+/* Bordi più marcati per i quadratoni 3x3 */
+.sudoku-cell.right-border {
+  border-right: 3px solid #34495e;
 }
 
-.sudoku-cell.border-bottom {
-  border-bottom: 2px solid #34495e;
+.sudoku-cell.bottom-border {
+  border-bottom: 3px solid #34495e;
+}
+
+/* Stile per differenziare i blocchi 3x3 con colori alternati */
+.sudoku-cell.odd-block {
+  background-color: #f2f7fc;
 }
 
 .sudoku-cell.focused-cell {
@@ -481,6 +558,7 @@ body {
   -moz-appearance: textfield;
   outline: none;
   transition: all 0.3s ease;
+  padding: 0;
 }
 
 @media (min-width: 768px) {
@@ -712,5 +790,114 @@ body {
 
 .error {
   animation: shake 0.5s ease;
+}
+
+.difficulty-selector {
+  margin-top: 25px;
+  width: 100%;
+  max-width: 550px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.difficulty-text {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.difficulty-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.difficulty-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+
+.difficulty-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3));
+  transform: translateX(-100%);
+  transition: all 0.3s ease;
+  z-index: 0;
+}
+
+.difficulty-btn:hover::before {
+  transform: translateX(0);
+}
+
+.difficulty-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.difficulty-btn.easy {
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+}
+
+.difficulty-btn.medium {
+  background: linear-gradient(90deg, #2196F3, #03A9F4);
+}
+
+.difficulty-btn.hard {
+  background: linear-gradient(90deg, #FF9800, #FFC107);
+}
+
+.difficulty-btn.complete {
+  background: linear-gradient(90deg, #9C27B0, #673AB7);
+}
+
+@media (max-width: 767px) {
+  .difficulty-buttons {
+    flex-direction: column;
+  }
+  
+  .difficulty-btn {
+    width: 100%;
+  }
+}
+
+@keyframes levelComplete {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+.difficulty-btn:hover {
+  animation: levelComplete 1.5s infinite;
 }
 </style>
