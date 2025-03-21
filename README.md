@@ -1,1 +1,1 @@
-Algoritmo per risolvere qualsiasi sudoku, dal più facile al più estremo!!
+	L'applicazione è in grado di risolvere qualsiasi schema di Sudoku utilizzando un avanzato algoritmo in JavaScript. Grazie a un'elaborazione efficiente, fornisce soluzioni rapide e precise, garantendo un'esperienza intuitiva per gli utenti.
