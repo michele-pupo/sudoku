@@ -281,360 +281,436 @@ export default {
 </script>
 
 <template>
-  <div class="container py-5">
-    <h1 class="pb-5 text-uppercase text-center display-1 fw-bold text-success">Sudoku</h1>
-    <div class="sudoku-grid">
-      <div class="sudoku-row" v-for="(row, rowIndex) in grid" :key="rowIndex">
-        <div
-          class="sudoku-cell"
-          v-for="(cell, colIndex) in row"
-          :key="colIndex"
-          :class="{ 'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex }"
-        >
-        <input
-          class="fw-bold"
-          type="number"
-          min="1"
-          max="9"
-          v-model.number="grid[rowIndex][colIndex]"
-          @input="handleInput(rowIndex, colIndex, $event.target.value)"
-          @keydown="handleKeyDown($event, rowIndex, colIndex)"
-          :disabled="isSolving || isSolved"
-          :class="{
-            'computer-solved': animationStates[rowIndex][colIndex] === 'computer-solved',
-            'user-input': initialNumbers[rowIndex][colIndex] !== null,
-            'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex)
-          }"
-          :style="{ color: initialNumbers[rowIndex][colIndex] !== null ? 'black' : 'red' }"
-          placeholder=""
-        />
+  <div class="sudoku-container">
+    <div class="game-area">
+      <h1 class="title">Sudoku Solver</h1>
+      
+      <div class="sudoku-grid-container">
+        <div class="sudoku-grid">
+          <div class="sudoku-row" v-for="(row, rowIndex) in grid" :key="rowIndex">
+            <div
+              class="sudoku-cell"
+              v-for="(cell, colIndex) in row"
+              :key="colIndex"
+              :class="{
+                'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex,
+                'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex),
+                'border-right': (colIndex + 1) % 3 === 0 && colIndex !== 8,
+                'border-bottom': (rowIndex + 1) % 3 === 0 && rowIndex !== 8,
+                'user-cell': initialNumbers[rowIndex][colIndex] !== null
+              }"
+            >
+              <input
+                type="number"
+                min="1"
+                max="9"
+                v-model.number="grid[rowIndex][colIndex]"
+                @input="handleInput(rowIndex, colIndex, $event.target.value)"
+                @keydown="handleKeyDown($event, rowIndex, colIndex)"
+                :disabled="isSolving || isSolved"
+                :class="{
+                  'computer-solved': initialNumbers[rowIndex][colIndex] === null && grid[rowIndex][colIndex] !== null,
+                  'user-input': initialNumbers[rowIndex][colIndex] !== null
+                }"
+                placeholder=""
+              />
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="d-flex justify-content-center pt-5">
-      <!-- Mostra il pulsante "Solve Sudoku" solo se il Sudoku non è stato risolto -->
-      <button 
-        v-if="!isSolved && !hasError" 
-        class="btn btn-success solve-btn" 
-        @click="solve"
-        :class="{ hide: isSolving }"
-      >
-        Solve Sudoku
-      </button>
+      
+      <div class="controls">
+        <button 
+          v-if="!isSolved && !hasError" 
+          class="btn solve-btn" 
+          @click="solve"
+          :class="{ 'hide': isSolving }"
+        >
+          <span class="btn-text">Solve Sudoku</span>
+        </button>
 
-      <!-- Mostra il pulsante "Reset Sudoku" solo dopo che il Sudoku è stato risolto o se c'è un errore -->
-      <button 
-        v-if="isSolved || hasError"
-        class="btn btn-danger reset-btn" 
-        @click="resetGrid"
-      >
-        Reset Sudoku
-    </button>
-    </div>
-    <div v-if="errorMessage">
-      <h3 class="text-danger text-uppercase fw-bold mt-4 text-center">{{ errorMessage }}</h3>
+        <button 
+          v-if="isSolved || hasError"
+          class="btn reset-btn" 
+          @click="resetGrid"
+        >
+          <span class="btn-text">Reset Sudoku</span>
+        </button>
+      </div>
+      
+      <div v-if="errorMessage" class="error-message">
+        <span>{{ errorMessage }}</span>
+      </div>
+      
+      <div class="instructions">
+        <h3>How to Play</h3>
+        <ul>
+          <li>Fill in numbers 1-9 in empty cells</li>
+          <li>Each row, column, and 3×3 box must contain numbers 1-9 without repetition</li>
+          <li>Use arrow keys to navigate the grid</li>
+          <li>Click "Solve Sudoku" to find the solution</li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
 
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-body {
-  font-family: 'Roboto Mono', monospace;
-  background: linear-gradient(135deg, #a8edea, #fed6e3);
-  animation: gradientAnimation 10s infinite alternate;
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  margin: 0;
+  min-height: 100vh;
+}
+
+.sudoku-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-@keyframes gradientAnimation {
-  0% {
-    background: linear-gradient(135deg, #a8edea, #fed6e3);
-  }
-  100% {
-    background: linear-gradient(135deg, #fed6e3, #a8edea);
-  }
+.game-area {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  padding: 30px;
+  margin: 20px 0;
 }
 
-h1 {
-  font-family: 'Poppins', sans-serif;
-  color: #28a745;
-  background: linear-gradient(90deg, #28a745 40%, #1d72b8 60%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.title {
   font-size: 2.5rem;
-  font-weight: bold;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 30px;
   text-align: center;
-  text-transform: uppercase;
-  text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
-  animation: subtleGlow 2s infinite alternate;
-  margin-bottom: 10px;
+  position: relative;
 }
 
-/* Animazione più discreta */
-@keyframes subtleGlow {
-  0% {
-    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), 0 0 10px #28a745;
-  }
-  100% {
-    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), 0 0 10px #1d72b8;
-  }
+.title::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  border-radius: 2px;
 }
 
-.text-danger {
-  font-family: 'Roboto', sans-serif;
-  font-size: 1.2rem;
-  background: #fdecea;
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  position: fixed; /* Fissa il messaggio */
-  bottom: 10px; /* Posiziona in basso */
-  left: 50%; /* Centra orizzontalmente */
-  transform: translateX(-50%); /* Centra correttamente */
-  z-index: 100; /* Assicura che il messaggio sia visibile sopra gli altri elementi */
-  width: auto;
-  max-width: 90%; /* Limita la larghezza massima */
-  text-align: center;
+.sudoku-grid-container {
+  position: relative;
+  width: 100%;
+  max-width: 550px;
+  margin: 0 auto;
 }
 
 .sudoku-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(9, 1fr);
-  gap: 2px;
-  width: 600px;
-  height: 600px;
-  margin: auto;
-  background: #333; /* Colore di sfondo per evidenziare i bordi */
-  border: 5px solid #333;
-  border-radius: 15px; /* Angoli arrotondati */
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.1); /* Ombra */
+  gap: 1px;
+  background-color: #34495e;
+  border: 2px solid #34495e;
+  border-radius: 5px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  max-width: 550px;
 }
 
 .sudoku-row {
-  display: contents; /* Consente di mantenere la struttura della griglia */
+  display: contents;
 }
 
 .sudoku-cell {
-  background: #f5f5f5; /* Sfondo chiaro per le celle */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Roboto', sans-serif; /* Font moderno */
-  border: 1px solid #ddd;
+  background-color: #f9f9f9;
+  position: relative;
+  transition: all 0.2s ease;
 }
 
-.sudoku-cell:nth-child(3n) {
-  border-right: 2px solid black;
+.sudoku-cell.border-right {
+  border-right: 2px solid #34495e;
 }
 
-.sudoku-cell:nth-child(3n + 1) {
-  border-left: 2px solid black;
+.sudoku-cell.border-bottom {
+  border-bottom: 2px solid #34495e;
 }
 
-.sudoku-row:nth-child(3n) .sudoku-cell {
-  border-bottom: 2px solid black;
+.sudoku-cell.focused-cell {
+  background-color: #e3f2fd;
 }
 
-.sudoku-row:nth-child(3n + 1) .sudoku-cell {
-  border-top: 2px solid black;
+.sudoku-cell.error {
+  background-color: rgba(255, 99, 71, 0.2);
+}
+
+.sudoku-cell.user-cell {
+  background-color: #f0f8ff;
 }
 
 .sudoku-cell input {
-  font-family: 'Roboto Mono', monospace;
   width: 100%;
   height: 100%;
-  text-align: center;
   border: none;
-  font-size: 1.8rem;
-  font-weight: bold;
-  color: #333; /* Colore scuro per i numeri */
   background: transparent;
-}
-
-.sudoku-cell input:hover {
-  background-color: #e0f7fa; /* Colore blu chiaro per evidenziare la cella */
-  transform: scale(1.05); /* Leggera espansione */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Ombra leggera */
-  transition: all 0.2s ease-in-out;
+  text-align: center;
+  font-size: calc(1vw + 1vh + 0.5vmin);
+  font-weight: 600;
+  color: #2c3e50;
   cursor: pointer;
-}
-
-.sudoku-cell input:focus {
-  background: #fffae6; /* Cambia colore quando si interagisce */
-  border-radius: 5px;
+  appearance: none;
+  -moz-appearance: textfield;
   outline: none;
-  transition: 0.2s ease-in-out;
+  transition: all 0.3s ease;
 }
 
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button {
+@media (min-width: 768px) {
+  .sudoku-cell input {
+    font-size: 1.6rem;
+  }
+}
+
+.sudoku-cell input.user-input {
+  color: #2980b9;
+}
+
+.sudoku-cell input.computer-solved {
+  color: #27ae60;
+}
+
+.sudoku-cell input:disabled {
+  cursor: default;
+}
+
+.sudoku-cell input::-webkit-outer-spin-button,
+.sudoku-cell input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-button {
-  padding: 12px 20px;
-  font-size: 1.2rem;
-  font-family: 'Roboto', sans-serif;
+.controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.btn {
+  position: relative;
+  padding: 12px 30px;
+  font-size: 1rem;
+  font-weight: 600;
   border: none;
-  border-radius: 5px;
+  border-radius: 30px;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 1;
+  min-width: 180px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-button:hover {
-  background-color: #45a049;
-  transform: scale(1.05);
-  transform: translateY(-2px); /* Effetto sollevamento */
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3));
+  transform: translateX(-100%);
+  transition: all 0.3s ease;
+  z-index: -1;
 }
 
-.btn-success {
-  background-color: #28a745;
-  color: white;
+.btn:hover::before {
+  transform: translateX(0);
 }
 
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.btn-danger:hover {
-  background-color: #c82333;
-  transform: translateY(-2px); /* Effetto sollevamento */
-}
-
-@keyframes spin {
-  0% {
-    transform: rotateX(0deg);
-    opacity: 1;
-  }
-  50% {
-    transform: rotateX(90deg);
-    opacity: 0.5;
-  }
-  100% {
-    transform: rotateX(180deg);
-    opacity: 1;
-  }
-}
-
-.sudoku-cell input.animate {
-  animation: spin 0.1s linear infinite;
-}
-
-.sudoku-cell input.correct {
-  animation: none;
-  color: green;
-  font-weight: bold;
-}
-
-/* Animazione per il pulsante "Solve Sudoku" */
-@keyframes hideButton {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0);
-  }
-}
-
-.solve-btn.hide {
-  animation: hideButton 0.5s forwards;
-}
-
-/* Allinea il pulsante "Reset Sudoku" al centro dopo che "Solve" è stato premuto */
-.reset-btn {
-  animation: moveToCenter 0.5s ease-in-out;
-  margin-top: 10px;
-}
-
-@keyframes moveToCenter {
-  0% {
-    transform: scale(1);
-  }
-  100% {
-    transform: scale(1.2);
-  }
-}
-
-/* Animazione per il pulsante Solve Sudoku */
-@keyframes showButton {
-  0% {
-    opacity: 0;
-    transform: scale(0);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+.btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .solve-btn {
-  animation: showButton 0.5s ease-in-out;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  color: white;
 }
 
-@keyframes blink {
+.reset-btn {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+  color: white;
+}
+
+.btn-text {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes pulse {
   0% {
-    background-color: #ffcccc; /* Colore rosso chiaro */
+    transform: scale(1);
   }
   50% {
-    background-color: #ff6666; /* Colore rosso scuro */
+    transform: scale(1.05);
   }
   100% {
-    background-color: #ffcccc;
+    transform: scale(1);
   }
 }
 
-.sudoku-cell input.error {
-  background: linear-gradient(135deg, #ff8a80, #ff5252);
-  border: none;
-  color: white;
-  animation: shake 0.3s ease-in-out, glowError 1s infinite;
+.solve-btn:not(.hide) {
+  animation: pulse 2s infinite;
 }
 
+.hide {
+  opacity: 0;
+  transform: scale(0);
+  transition: all 0.5s ease;
+}
+
+.error-message {
+  margin-top: 20px;
+  padding: 12px 20px;
+  background-color: #ffecec;
+  color: #e74c3c;
+  border-radius: 5px;
+  font-weight: 500;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 550px;
+}
+
+.instructions {
+  margin-top: 30px;
+  width: 100%;
+  max-width: 550px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.instructions h3 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+  font-weight: 600;
+  border-bottom: 2px solid #eaeaea;
+  padding-bottom: 8px;
+}
+
+.instructions ul {
+  padding-left: 20px;
+}
+
+.instructions li {
+  color: #555;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+/* Responsive Design */
+@media (max-width: 767px) {
+  .game-area {
+    padding: 20px 15px;
+  }
+  
+  .title {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+  }
+  
+  .sudoku-grid-container {
+    max-width: 100%;
+  }
+  
+  .btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    min-width: 150px;
+  }
+  
+  .instructions {
+    padding: 15px;
+  }
+  
+  .instructions h3 {
+    font-size: 1.1rem;
+  }
+  
+  .instructions li {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-area {
+    padding: 15px 10px;
+  }
+  
+  .title {
+    font-size: 1.5rem;
+  }
+  
+  .btn {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    min-width: 130px;
+  }
+}
+
+/* Animation for solved cells */
+@keyframes solveFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.computer-solved {
+  animation: solveFadeIn 0.3s ease forwards;
+}
+
+/* Error animation */
 @keyframes shake {
   0%, 100% {
     transform: translateX(0);
   }
-  25% {
-    transform: translateX(-5px);
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
   }
-  50% {
-    transform: translateX(5px);
-  }
-  75% {
-    transform: translateX(-5px);
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
   }
 }
 
-@keyframes glowError {
-  0% {
-    box-shadow: 0 0 10px rgba(255, 82, 82, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(255, 82, 82, 1);
-  }
-  100% {
-    box-shadow: 0 0 10px rgba(255, 82, 82, 0.5);
-  }
-}
-
-.sudoku-cell input.correct {
-  animation: glow 1s ease-out infinite;
-}
-
-.sudoku-cell input.user-input {
-  background-color: #507687; /* Colore grigio chiaro */
-  transition: background-color 0.3s ease; /* Effetto di transizione morbida */
+.error {
+  animation: shake 0.5s ease;
 }
 </style>
