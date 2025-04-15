@@ -1,3 +1,4 @@
+
 <script>
 export default {
   data() {
@@ -35,7 +36,13 @@ export default {
         complete: '#9C27B0'
       },
       // Per verificare se siamo in modalità desktop
-      isDesktop: window.innerWidth >= 1024
+      isDesktop: window.innerWidth >= 1024,
+      // Tema scuro
+      darkMode: false,
+      // Mostra dialogo di conferma
+      showConfirmDialog: false,
+      // Difficoltà selezionata per conferma
+      selectedDifficulty: null
     };
   },
 
@@ -51,6 +58,24 @@ export default {
     window.removeEventListener('resize', this.checkViewportSize); // Rimuovi il listener resize
   },
 
+  computed: {
+    gameState() {
+      if (this.isSolving) return 'solving';
+      if (this.isSolved) return 'solved';
+      if (this.hasError) return 'error';
+      if (this.grid.every(row => row.every(cell => cell !== null))) return 'complete';
+      return 'playing';
+    },
+    
+    isGameComplete() {
+      return this.grid.every(row => row.every(cell => cell !== null));
+    },
+    
+    emptyCount() {
+      return this.grid.flat().filter(cell => cell === null).length;
+    }
+  },
+
   methods: {
     checkViewportSize() {
       this.isDesktop = window.innerWidth >= 1024;
@@ -61,6 +86,7 @@ export default {
       this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
       this.grid = JSON.parse(JSON.stringify(this.initialNumbers));
       this.completeSolution = Array(9).fill(null).map(() => Array(9).fill(null));
+      this.animationStates = Array(9).fill(null).map(() => Array(9).fill(false));
 
       // Resetta gli errori
       this.errorCells = [];
@@ -73,6 +99,11 @@ export default {
       this.focusedCell = { row: 0, col: 0 }; // Resetta la cella selezionata
       this.hasSolution = false; // Resetta lo stato della soluzione
       this.currentSolveColor = '#27ae60'; // Resetta il colore di default
+    },
+
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      document.body.classList.toggle('dark-mode', this.darkMode);
     },
 
     handleArrowKeys(event) {
@@ -135,6 +166,7 @@ export default {
     },
 
     focusCell(row, col) {
+      this.focusedCell = { row, col };
       // Trova l'input e mettilo a fuoco
       this.$nextTick(() => {
         const input = this.$el.querySelector(
@@ -158,6 +190,7 @@ export default {
       this.hasError = false;
       this.hasSolution = false; // Resetta la soluzione quando l'utente modifica la griglia
       this.focusedCell = { row: rowIndex, col: colIndex }; // Aggiorna la cella selezionata
+      this.checkGridValidity(); // Controlla immediatamente se ci sono errori
     },
 
     isValid(grid, row, col, num) {
@@ -167,6 +200,33 @@ export default {
           return false;
         }
       }
+      return true;
+    },
+
+    isValidMove(grid, row, col, num) {
+      // Controlla la riga
+      for (let x = 0; x < 9; x++) {
+        if (x !== col && grid[row][x] === num) return false;
+      }
+      
+      // Controlla la colonna
+      for (let x = 0; x < 9; x++) {
+        if (x !== row && grid[x][col] === num) return false;
+      }
+      
+      // Controlla il riquadro 3x3
+      let boxRow = Math.floor(row / 3) * 3;
+      let boxCol = Math.floor(col / 3) * 3;
+      
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          if ((boxRow + i !== row || boxCol + j !== col) && 
+              grid[boxRow + i][boxCol + j] === num) {
+            return false;
+          }
+        }
+      }
+      
       return true;
     },
 
@@ -213,7 +273,8 @@ export default {
         }
       }
 
-      return this.errorCells.length === 0; // Restituisce false se ci sono errori
+      this.hasError = this.errorCells.length > 0;
+      return !this.hasError; // Restituisce false se ci sono errori
     },
 
     solveSudoku(grid) {
@@ -284,6 +345,23 @@ export default {
       return cellsToSolve;
     },
 
+    confirmSolveWithDifficulty(difficulty) {
+      this.selectedDifficulty = difficulty;
+      this.showConfirmDialog = true;
+    },
+
+    cancelSolve() {
+      this.showConfirmDialog = false;
+      this.selectedDifficulty = null;
+    },
+
+    confirmSolve() {
+      this.showConfirmDialog = false;
+      const difficulty = this.selectedDifficulty;
+      this.selectedDifficulty = null;
+      this.solveWithDifficulty(difficulty);
+    },
+
     // Risolvi il sudoku con un livello di difficoltà specifico
     async solveWithDifficulty(difficulty) {
       if (!this.checkGridValidity()) {
@@ -339,21 +417,116 @@ export default {
     },
 
     async spinToCorrectNumber(row, col, correctNumber) {
+      // Inizia con un'animazione più veloce e rallenta quando ci si avvicina al numero corretto
       let num = 1;
-
+      let delay = 50; // Delay iniziale in ms
+      
+      this.animationStates[row][col] = true; // Attiva l'animazione
+      
       while (num !== correctNumber) {
         if (!this.isSolving) return; // Interrompe l'animazione se il flag è falso
         this.grid[row][col] = num; // Mostra il numero animato
-        await this.sleep(50); // Breve pausa per l'animazione
+        await this.sleep(delay); // Breve pausa per l'animazione
+        
+        // Calcola quanto siamo vicini al numero corretto
+        const distance = Math.min(
+          Math.abs(num - correctNumber),
+          Math.abs(num + 9 - correctNumber),
+          Math.abs(num - 9 - correctNumber)
+        );
+        
+        // Aumenta il delay quando ci avviciniamo al numero corretto
+        delay = 50 + Math.max(0, (3 - distance) * 30);
+        
         num = (num % 9) + 1; // Passa al numero successivo
       }
-
+      
       // Una volta trovato il numero corretto, lo evidenzia
       this.grid[row][col] = correctNumber;
+      
+      // Aggiunge un effetto visivo speciale quando il numero corretto è trovato
+      setTimeout(() => {
+        this.animationStates[row][col] = false;
+      }, 500);
     },
 
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
+    },
+
+    getHint() {
+      if (!this.hasSolution) {
+        // Calcola prima la soluzione completa
+        this.completeSolution = JSON.parse(JSON.stringify(this.grid));
+        const solved = this.solveSudoku(this.completeSolution);
+        
+        if (!solved) {
+          this.errorMessage = "Non esiste una soluzione per questo Sudoku!";
+          this.hasError = true;
+          return;
+        }
+        
+        this.hasSolution = true;
+      }
+      
+      // Trova celle vuote
+      let emptyCells = [];
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (this.grid[row][col] === null) {
+            emptyCells.push({ row, col });
+          }
+        }
+      }
+      
+      if (emptyCells.length === 0) {
+        this.errorMessage = "Non ci sono celle vuote!";
+        return;
+      }
+      
+      // Seleziona casualmente una cella vuota
+      const randomIndex = Math.floor(Math.random() * emptyCells.length);
+      const { row, col } = emptyCells[randomIndex];
+      
+      // Applica un'animazione più breve per il suggerimento
+      this.currentSolveColor = '#E91E63'; // Colore rosa per i suggerimenti
+      this.spinToCorrectNumber(row, col, this.completeSolution[row][col]);
+    },
+
+    verifySolution() {
+      if (!this.isGameComplete) {
+        this.errorMessage = "Completa il Sudoku prima di verificarlo!";
+        return;
+      }
+      
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (!this.hasSolution) {
+            // Calcola la soluzione se non esiste
+            this.completeSolution = JSON.parse(JSON.stringify(this.initialNumbers));
+            const solved = this.solveSudoku(this.completeSolution);
+            if (!solved) {
+              this.errorMessage = "Impossibile verificare: nessuna soluzione esistente!";
+              this.hasError = true;
+              return;
+            }
+            this.hasSolution = true;
+          }
+          
+          // Verifica se la soluzione del giocatore corrisponde alla soluzione calcolata
+          if (this.grid[row][col] !== this.completeSolution[row][col]) {
+            this.errorMessage = "La tua soluzione contiene errori!";
+            this.hasError = true;
+            this.errorCells.push({ row, col });
+            return;
+          }
+        }
+      }
+      
+      // Se arriviamo qui, la soluzione è corretta
+      this.isSolved = true;
+      this.errorMessage = "";
+      this.hasError = false;
     },
 
     // Funzione per ottenere lo stile di colore specifico per i numeri risolti dal computer
@@ -365,10 +538,16 @@ export default {
 </script>
 
 <template>
-  <div class="sudoku-container" :class="{ 'desktop-layout': isDesktop }">
+  <div class="sudoku-container" :class="{ 'desktop-layout': isDesktop, 'dark-mode': darkMode }">
     <div class="game-area">
       <div class="header-section">
         <h1 class="title">Sudoku Solver</h1>
+        <div class="theme-toggle">
+          <button @click="toggleDarkMode" class="theme-btn" :title="darkMode ? 'Passa a tema chiaro' : 'Passa a tema scuro'">
+            <span v-if="!darkMode">🌙</span>
+            <span v-else>☀️</span>
+          </button>
+        </div>
       </div>
       
       <div class="content-wrapper">
@@ -385,7 +564,8 @@ export default {
                   'right-border': (colIndex + 1) % 3 === 0 && colIndex < 8,
                   'bottom-border': (rowIndex + 1) % 3 === 0 && rowIndex < 8,
                   'user-cell': initialNumbers[rowIndex][colIndex] !== null,
-                  'odd-block': Math.floor(rowIndex/3) % 2 === Math.floor(colIndex/3) % 2
+                  'odd-block': Math.floor(rowIndex/3) % 2 === Math.floor(colIndex/3) % 2,
+                  'animated': animationStates[rowIndex][colIndex]
                 }"
               >
                 <input
@@ -406,6 +586,23 @@ export default {
               </div>
             </div>
           </div>
+          
+          <!-- Game Status -->
+          <div class="game-status" v-if="!isSolving">
+            <div v-if="gameState === 'playing'" class="status-playing">
+              <p class="status-message">{{ emptyCount }} celle da riempire</p>
+            </div>
+            
+            <div v-else-if="gameState === 'solved'" class="status-success">
+              <p class="status-message">Sudoku risolto con successo!</p>
+            </div>
+            
+            <div v-else-if="gameState === 'complete'" class="status-checking">
+              <p class="status-message">Sudoku completato! Controlliamo la soluzione...</p>
+              <!-- Aggiungi un pulsante per verificare -->
+              <button class="btn verify-btn" @click="verifySolution">Verifica Soluzione</button>
+            </div>
+          </div>
         </div>
         
         <div class="controls-section">
@@ -413,27 +610,36 @@ export default {
             <span>{{ errorMessage }}</span>
           </div>
           
-          <div class="difficulty-selector" v-if="!isSolved && !hasError && !isSolving">
+          <div class="difficulty-selector" v-if="!isSolved && !isSolving">
             <p class="difficulty-text">Risolvi con livello di difficoltà:</p>
             <div class="difficulty-buttons">
-              <button class="difficulty-btn easy" @click="solveWithDifficulty('easy')">
+              <button class="difficulty-btn easy" @click="confirmSolveWithDifficulty('easy')">
                 <span class="btn-text">Facile</span>
               </button>
-              <button class="difficulty-btn medium" @click="solveWithDifficulty('medium')">
+              <button class="difficulty-btn medium" @click="confirmSolveWithDifficulty('medium')">
                 <span class="btn-text">Medio</span>
               </button>
-              <button class="difficulty-btn hard" @click="solveWithDifficulty('hard')">
+              <button class="difficulty-btn hard" @click="confirmSolveWithDifficulty('hard')">
                 <span class="btn-text">Difficile</span>
               </button>
-              <button class="difficulty-btn complete" @click="solveWithDifficulty('complete')">
+              <button class="difficulty-btn complete" @click="confirmSolveWithDifficulty('complete')">
                 <span class="btn-text">Completo</span>
               </button>
             </div>
           </div>
           
           <div class="controls">
+            <!-- Hint button -->
             <button 
-              v-if="isSolved || hasError"
+              v-if="!isSolved && !isSolving && emptyCount > 0"
+              class="btn hint-btn" 
+              @click="getHint"
+            >
+              <span class="btn-text">Suggerimento</span>
+            </button>
+            
+            <!-- Reset button - always visible -->
+            <button 
               class="btn reset-btn" 
               @click="resetGrid"
             >
@@ -447,6 +653,7 @@ export default {
               <li>Inserisci numeri da 1 a 9 nelle celle vuote</li>
               <li>Ogni riga, colonna e riquadro 3×3 deve contenere i numeri da 1 a 9 senza ripetizioni</li>
               <li>Usa i tasti freccia per navigare nella griglia</li>
+              <li>Clicca "Suggerimento" per ricevere aiuto su una cella casuale</li>
               <li>Scegli un livello di difficoltà per risolvere il sudoku</li>
             </ul>
             <div class="difficulty-legend">
@@ -471,6 +678,20 @@ export default {
         </div>
       </div>
     </div>
+    
+    <!-- Dialog di conferma -->
+    <div class="modal-overlay" v-if="showConfirmDialog">
+      <div class="confirm-dialog">
+        <h3>Conferma azione</h3>
+        <p>Sei sicuro di voler risolvere il Sudoku con difficoltà {{ selectedDifficulty === 'easy' ? 'Facile' : 
+            selectedDifficulty === 'medium' ? 'Media' : 
+            selectedDifficulty === 'hard' ? 'Difficile' : 'Completa' }}?</p>
+        <div class="dialog-buttons">
+          <button @click="cancelSolve" class="btn cancel-btn">Annulla</button>
+          <button @click="confirmSolve" class="btn confirm-btn">Conferma</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -491,6 +712,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.3s ease;
 }
 
 .sudoku-container {
@@ -513,313 +735,227 @@ body {
 .desktop-layout .game-area {
   height: calc(100vh - 40px);
   max-height: calc(100vh - 40px);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .game-area {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 1400px;
-  background-color: white;
-  border-radius: 20px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.07);
-  padding: 30px;
-  margin: 20px 0;
-  transition: all 0.3s ease;
+  max-width: 1200px;
+  padding: 20px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
 }
 
 .header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
-  text-align: center;
 }
 
 .title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-  position: relative;
-  display: inline-block;
+  color: #333;
+  font-size: 2rem;
   margin: 0;
-}
-
-.title::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, #3498db, #2ecc71);
-  border-radius: 2px;
+  text-align: center;
+  flex-grow: 1;
+  transition: color 0.3s ease;
 }
 
 .content-wrapper {
   display: flex;
   flex-direction: column;
-  height: calc(100% - 70px);
+  gap: 20px;
+  height: calc(100% - 60px);
+  overflow: hidden;
 }
 
-@media (min-width: 1024px) {
-  .content-wrapper {
-    flex-direction: row;
-    gap: 30px;
-  }
-  
-  .sudoku-grid-container {
-    flex: 1;
-    max-width: 55%;
-  }
-  
-  .controls-section {
-    flex: 1;
-    max-width: 45%;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding-left: 20px;
-  }
+.desktop-layout .content-wrapper {
+  flex-direction: row;
 }
 
 .sudoku-grid-container {
-  margin-bottom: 30px;
-  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 350px;
 }
 
 .sudoku-grid {
-  display: grid;
-  grid-template-rows: repeat(9, 1fr);
-  background-color: #34495e;
-  border: 3px solid #34495e;
-  border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 500px;
   width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
 }
 
 .sudoku-row {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  display: flex;
+  width: 100%;
 }
 
 .sudoku-cell {
   position: relative;
+  width: 11.11%;
+  aspect-ratio: 1/1;
+  border: 1px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  background-color: #fff;
   transition: all 0.3s ease;
-  border: 1px solid #c4c4c4;
-  background-color: #f9f9f9;
 }
 
-/* Bordi più marcati per i quadratoni 3x3 */
+.odd-block {
+  background-color: #f5f7fa;
+}
+
 .sudoku-cell.right-border {
-  border-right: 3px solid #34495e;
+  border-right: 2px solid #333;
 }
 
 .sudoku-cell.bottom-border {
-  border-bottom: 3px solid #34495e;
-}
-
-/* Stile per differenziare i blocchi 3x3 con colori alternati */
-.sudoku-cell.odd-block {
-  background-color: #f2f7fc;
-}
-
-.sudoku-cell.focused-cell {
-  background-color: #e3f2fd;
-  box-shadow: inset 0 0 0 2px #3498db;
-}
-
-.sudoku-cell.error {
-  background-color: rgba(255, 99, 71, 0.2);
-}
-
-.sudoku-cell.user-cell {
-  background-color: #f0f8ff;
+  border-bottom: 2px solid #333;
 }
 
 .sudoku-cell input {
   width: 100%;
   height: 100%;
   border: none;
-  background: transparent;
   text-align: center;
-  font-size: calc(1vw + 1vh + 0.5vmin);
-  font-weight: 600;
-  color: #2c3e50;
-  cursor: pointer;
-  appearance: none;
-  -moz-appearance: textfield;
-  outline: none;
-  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  background: transparent;
+  color: #333;
+  font-weight: bold;
   padding: 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-@media (min-width: 768px) {
-  .sudoku-cell input {
-    font-size: 1.8rem;
-  }
-}
-
-.sudoku-cell input.user-input {
-  color: #2980b9;
-  font-weight: 700;
-}
-
-.sudoku-cell input.computer-solved {
-  animation: solveFadeIn 0.5s ease forwards;
-  font-weight: 600;
+.sudoku-cell input:focus {
+  outline: none;
+  background-color: rgba(33, 150, 243, 0.1);
 }
 
 .sudoku-cell input:disabled {
-  cursor: default;
+  cursor: not-allowed;
 }
 
-.sudoku-cell input::-webkit-outer-spin-button,
-.sudoku-cell input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+.focused-cell {
+  background-color: rgba(33, 150, 243, 0.1) !important;
+}
+
+.user-input {
+  color: #333 !important;
+  font-weight: 700;
+}
+
+.computer-solved {
+  /* Il colore sarà impostato dinamicamente in base alla difficoltà */
+  font-weight: 500;
+}
+
+.error {
+  background-color: rgba(244, 67, 54, 0.1) !important;
+}
+
+.error input {
+  color: #f44336 !important;
+}
+
+.animated {
+  animation: spin-number 0.5s ease-in-out;
+}
+
+@keyframes spin-number {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.game-status {
+  margin-top: 15px;
+  text-align: center;
+  font-size: 1rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.status-message {
+  margin-bottom: 10px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.status-success .status-message {
+  color: #27ae60;
+}
+
+.status-checking .status-message {
+  color: #2196f3;
 }
 
 .controls-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: 100%;
+  padding: 20px;
+  background-color: #f9fafc;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  overflow-y: auto;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.controls {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-
-.btn {
-  position: relative;
-  padding: 14px 30px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  z-index: 1;
-  min-width: 200px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3));
-  transform: translateX(-100%);
-  transition: all 0.3s ease;
-  z-index: -1;
-}
-
-.btn:hover::before {
-  transform: translateX(0);
-}
-
-.btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.solve-btn {
-  background: linear-gradient(90deg, #3498db, #2ecc71);
-  color: white;
-}
-
-.reset-btn {
-  background: linear-gradient(90deg, #e74c3c, #c0392b);
-  color: white;
-}
-
-.btn-text {
-  position: relative;
-  z-index: 2;
+.desktop-layout .controls-section {
+  min-width: 300px;
+  max-width: 400px;
 }
 
 .error-message {
-  padding: 15px 20px;
-  background-color: #ffecec;
-  color: #e74c3c;
-  border-radius: 10px;
-  font-weight: 500;
+  padding: 10px;
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+  border-radius: 4px;
   text-align: center;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  border-left: 5px solid #e74c3c;
-  width: 100%;
-}
-
-.instructions {
-  background-color: #f8f9fa;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  height: 100%;
-  overflow: auto;
-}
-
-.instructions h3 {
-  color: #2c3e50;
-  margin-bottom: 15px;
-  font-weight: 600;
-  position: relative;
-  padding-bottom: 10px;
-}
-
-.instructions h3::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 50px;
-  height: 3px;
-  background: linear-gradient(90deg, #3498db, #2ecc71);
-  border-radius: 2px;
-}
-
-.instructions ul {
-  padding-left: 20px;
-  margin-bottom: 20px;
-}
-
-.instructions li {
-  color: #555;
+  font-weight: 500;
   margin-bottom: 10px;
-  font-size: 1rem;
-  position: relative;
-}
-
-.instructions li::before {
-  content: '•';
-  color: #3498db;
-  font-weight: bold;
-  display: inline-block;
-  width: 1em;
-  margin-left: -1em;
+  transition: all 0.3s ease;
 }
 
 .difficulty-selector {
-  margin-bottom: 20px;
-  width: 100%;
+  margin-bottom: 15px;
 }
 
 .difficulty-text {
-  color: #2c3e50;
+  margin-bottom: 10px;
   font-weight: 500;
-  margin-bottom: 15px;
   text-align: center;
+  transition: color 0.3s ease;
 }
 
 .difficulty-buttons {
@@ -828,76 +964,131 @@ body {
   gap: 10px;
 }
 
-@media (min-width: 768px) {
-  .difficulty-buttons {
-    grid-template-columns: repeat(4, 1fr);
-  }
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .difficulty-btn {
-  padding: 12px 15px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  padding: 8px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
 }
 
 .difficulty-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-.difficulty-btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .difficulty-btn.easy {
-  background: linear-gradient(135deg, #4CAF50, #2E7D32);
+  background-color: #4CAF50;
 }
 
 .difficulty-btn.medium {
-  background: linear-gradient(135deg, #2196F3, #1565C0);
+  background-color: #2196F3;
 }
 
 .difficulty-btn.hard {
-  background: linear-gradient(135deg, #FF9800, #EF6C00);
+  background-color: #FF9800;
 }
 
 .difficulty-btn.complete {
-  background: linear-gradient(135deg, #9C27B0, #6A1B9A);
+  background-color: #9C27B0;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.hint-btn {
+  background-color: #E91E63;
+}
+
+.reset-btn {
+  background-color: #607D8B;
+}
+
+.verify-btn {
+  background-color: #2196F3;
+  margin-top: 10px;
+}
+
+.instructions {
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.3s ease;
+}
+
+.instructions h3 {
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 1.1rem;
+  transition: color 0.3s ease;
+}
+
+.instructions ul {
+  padding-left: 20px;
+  margin-bottom: 15px;
+}
+
+.instructions li {
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+  color: #555;
+  transition: color 0.3s ease;
 }
 
 .difficulty-legend {
-  margin-top: 20px;
-  background-color: white;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
-}
-
-.legend-item:last-child {
-  margin-bottom: 0;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #555;
+  transition: color 0.3s ease;
 }
 
 .color-sample {
-  display: inline-block;
   width: 15px;
   height: 15px;
-  border-radius: 50%;
-  margin-right: 10px;
+  border-radius: 3px;
 }
 
 .color-sample.easy {
@@ -916,14 +1107,194 @@ body {
   background-color: #9C27B0;
 }
 
-@keyframes solveFadeIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.8);
+.theme-toggle {
+  margin-left: 10px;
+}
+
+.theme-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.theme-btn:hover {
+  transform: rotate(30deg);
+}
+
+/* Modal di conferma */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.confirm-dialog h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.cancel-btn {
+  background-color: #9e9e9e;
+}
+
+.confirm-btn {
+  background-color: #2196F3;
+}
+
+/* Dark Mode */
+.dark-mode {
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+}
+
+body.dark-mode {
+  background: #121212;
+}
+
+.dark-mode .game-area {
+  background-color: #1e1e1e;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .title {
+  color: #e0e0e0;
+}
+
+.dark-mode .sudoku-grid {
+  border-color: #555;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .sudoku-cell {
+  border-color: #444;
+  background-color: #2d2d2d;
+}
+
+.dark-mode .odd-block {
+  background-color: #252525;
+}
+
+.dark-mode .sudoku-cell.right-border {
+  border-right-color: #555;
+}
+
+.dark-mode .sudoku-cell.bottom-border {
+  border-bottom-color: #555;
+}
+
+.dark-mode .sudoku-cell input {
+  color: #e0e0e0;
+}
+
+.dark-mode .focused-cell {
+  background-color: rgba(33, 150, 243, 0.2) !important;
+}
+
+.dark-mode .user-input {
+  color: #e0e0e0 !important;
+}
+
+.dark-mode .controls-section {
+  background-color: #2d2d2d;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .error-message {
+  background-color: rgba(244, 67, 54, 0.15);
+}
+
+.dark-mode .difficulty-text {
+  color: #e0e0e0;
+}
+
+.dark-mode .instructions {
+  background-color: rgba(45, 45, 45, 0.9);
+}
+
+.dark-mode .instructions h3 {
+  color: #e0e0e0;
+}
+
+.dark-mode .instructions li {
+  color: #bbb;
+}
+
+.dark-mode .legend-item {
+  color: #bbb;
+}
+
+.dark-mode .confirm-dialog {
+  background-color: #2d2d2d;
+}
+
+.dark-mode .confirm-dialog h3 {
+  color: #e0e0e0;
+}
+
+.dark-mode .status-message {
+  color: #bbb;
+}
+
+/* Responsive design per schermi piccoli */
+@media (max-width: 768px) {
+  .title {
+    font-size: 1.5rem;
   }
-  100% {
-    opacity: 1;
-    transform: scale(1);
+  
+  .sudoku-cell input {
+    font-size: 1rem;
+  }
+  
+  .controls-section {
+    padding: 15px;
+  }
+  
+  .difficulty-buttons {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .sudoku-container {
+    padding: 10px;
+  }
+  
+  .game-area {
+    padding: 10px;
+  }
+  
+  .sudoku-cell input {
+    font-size: 0.9rem;
+  }
+  
+  .btn {
+    padding: 8px 12px;
+    font-size: 0.9rem;
   }
 }
 
