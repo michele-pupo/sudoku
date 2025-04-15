@@ -25,19 +25,37 @@ export default {
       difficultyLevel: 'complete',
       // Indica se la soluzione completa è stata calcolata
       hasSolution: false,
+      // Per tenere traccia del colore attuale dei numeri risolti automaticamente
+      currentSolveColor: '#27ae60',
+      // Dizionario dei colori per i diversi livelli di difficoltà
+      difficultyColors: {
+        easy: '#4CAF50',
+        medium: '#2196F3',
+        hard: '#FF9800',
+        complete: '#9C27B0'
+      },
+      // Per verificare se siamo in modalità desktop
+      isDesktop: window.innerWidth >= 1024
     };
   },
 
   mounted() {
     this.resetGrid();
     window.addEventListener('keydown', this.handleArrowKeys); // Assegna il listener
+    window.addEventListener('resize', this.checkViewportSize); // Per controllare la dimensione della finestra
+    this.checkViewportSize(); // Controlla la dimensione iniziale
   },
 
   beforeUnmount() {
     window.removeEventListener('keydown', this.handleArrowKeys); // Rimuovi il listener
+    window.removeEventListener('resize', this.checkViewportSize); // Rimuovi il listener resize
   },
 
   methods: {
+    checkViewportSize() {
+      this.isDesktop = window.innerWidth >= 1024;
+    },
+
     resetGrid() {
       // Reset della griglia
       this.initialNumbers = Array(9).fill(null).map(() => Array(9).fill(null));
@@ -54,6 +72,7 @@ export default {
       this.isSolved = false;   // Permette di risolvere di nuovo il Sudoku
       this.focusedCell = { row: 0, col: 0 }; // Resetta la cella selezionata
       this.hasSolution = false; // Resetta lo stato della soluzione
+      this.currentSolveColor = '#27ae60'; // Resetta il colore di default
     },
 
     handleArrowKeys(event) {
@@ -268,10 +287,13 @@ export default {
     // Risolvi il sudoku con un livello di difficoltà specifico
     async solveWithDifficulty(difficulty) {
       if (!this.checkGridValidity()) {
-        this.errorMessage = 'Invalid Sudoku grid! Please fix duplicate numbers.';
+        this.errorMessage = 'Griglia Sudoku non valida! Correggi i numeri duplicati.';
         this.hasError = true;
         return;
       }
+
+      // Imposta il colore per la difficoltà selezionata
+      this.currentSolveColor = this.difficultyColors[difficulty];
 
       this.difficultyLevel = difficulty;
       this.errorMessage = '';
@@ -284,7 +306,7 @@ export default {
         const solved = this.solveSudoku(this.completeSolution);
         
         if (!solved) {
-          this.errorMessage = "No solution exists!";
+          this.errorMessage = "Non esiste una soluzione!";
           this.hasError = true;
           this.isSolving = false;
           return;
@@ -333,94 +355,120 @@ export default {
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     },
+
+    // Funzione per ottenere lo stile di colore specifico per i numeri risolti dal computer
+    getComputerSolvedStyle() {
+      return { color: this.currentSolveColor };
+    }
   }
 }
 </script>
 
 <template>
-  <div class="sudoku-container">
+  <div class="sudoku-container" :class="{ 'desktop-layout': isDesktop }">
     <div class="game-area">
-      <h1 class="title">Sudoku Solver</h1>
+      <div class="header-section">
+        <h1 class="title">Sudoku Solver</h1>
+      </div>
       
-      <div class="sudoku-grid-container">
-        <div class="sudoku-grid">
-          <div class="sudoku-row" v-for="(row, rowIndex) in grid" :key="rowIndex">
-            <div
-              class="sudoku-cell"
-              v-for="(cell, colIndex) in row"
-              :key="colIndex"
-              :class="{
-                'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex,
-                'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex),
-                'right-border': (colIndex + 1) % 3 === 0 && colIndex < 8,
-                'bottom-border': (rowIndex + 1) % 3 === 0 && rowIndex < 8,
-                'user-cell': initialNumbers[rowIndex][colIndex] !== null,
-                'odd-block': Math.floor(rowIndex/3) % 2 === Math.floor(colIndex/3) % 2
-              }"
-            >
-              <input
-                type="number"
-                min="1"
-                max="9"
-                v-model.number="grid[rowIndex][colIndex]"
-                @input="handleInput(rowIndex, colIndex, $event.target.value)"
-                @keydown="handleKeyDown($event, rowIndex, colIndex)"
-                :disabled="isSolving || isSolved"
+      <div class="content-wrapper">
+        <div class="sudoku-grid-container">
+          <div class="sudoku-grid">
+            <div class="sudoku-row" v-for="(row, rowIndex) in grid" :key="rowIndex">
+              <div
+                class="sudoku-cell"
+                v-for="(cell, colIndex) in row"
+                :key="colIndex"
                 :class="{
-                  'computer-solved': initialNumbers[rowIndex][colIndex] === null && grid[rowIndex][colIndex] !== null,
-                  'user-input': initialNumbers[rowIndex][colIndex] !== null
+                  'focused-cell': focusedCell.row === rowIndex && focusedCell.col === colIndex,
+                  'error': errorCells.some(err => err.row === rowIndex && err.col === colIndex),
+                  'right-border': (colIndex + 1) % 3 === 0 && colIndex < 8,
+                  'bottom-border': (rowIndex + 1) % 3 === 0 && rowIndex < 8,
+                  'user-cell': initialNumbers[rowIndex][colIndex] !== null,
+                  'odd-block': Math.floor(rowIndex/3) % 2 === Math.floor(colIndex/3) % 2
                 }"
-                placeholder=""
-              />
+              >
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  v-model.number="grid[rowIndex][colIndex]"
+                  @input="handleInput(rowIndex, colIndex, $event.target.value)"
+                  @keydown="handleKeyDown($event, rowIndex, colIndex)"
+                  :disabled="isSolving || isSolved"
+                  :class="{
+                    'computer-solved': initialNumbers[rowIndex][colIndex] === null && grid[rowIndex][colIndex] !== null,
+                    'user-input': initialNumbers[rowIndex][colIndex] !== null
+                  }"
+                  :style="initialNumbers[rowIndex][colIndex] === null && grid[rowIndex][colIndex] !== null ? getComputerSolvedStyle() : {}"
+                  placeholder=""
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div class="difficulty-selector" v-if="!isSolved && !hasError && !isSolving">
-        <p class="difficulty-text">Risolvi con livello di difficoltà:</p>
-        <div class="difficulty-buttons">
-          <button class="difficulty-btn easy" @click="solveWithDifficulty('easy')">
-            <span class="btn-text">Facile</span>
-          </button>
-          <button class="difficulty-btn medium" @click="solveWithDifficulty('medium')">
-            <span class="btn-text">Medio</span>
-          </button>
-          <button class="difficulty-btn hard" @click="solveWithDifficulty('hard')">
-            <span class="btn-text">Difficile</span>
-          </button>
-          <button class="difficulty-btn complete" @click="solveWithDifficulty('complete')">
-            <span class="btn-text">Completo</span>
-          </button>
+        
+        <div class="controls-section">
+          <div v-if="errorMessage" class="error-message">
+            <span>{{ errorMessage }}</span>
+          </div>
+          
+          <div class="difficulty-selector" v-if="!isSolved && !hasError && !isSolving">
+            <p class="difficulty-text">Risolvi con livello di difficoltà:</p>
+            <div class="difficulty-buttons">
+              <button class="difficulty-btn easy" @click="solveWithDifficulty('easy')">
+                <span class="btn-text">Facile</span>
+              </button>
+              <button class="difficulty-btn medium" @click="solveWithDifficulty('medium')">
+                <span class="btn-text">Medio</span>
+              </button>
+              <button class="difficulty-btn hard" @click="solveWithDifficulty('hard')">
+                <span class="btn-text">Difficile</span>
+              </button>
+              <button class="difficulty-btn complete" @click="solveWithDifficulty('complete')">
+                <span class="btn-text">Completo</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="controls">
+            <button 
+              v-if="isSolved || hasError"
+              class="btn reset-btn" 
+              @click="resetGrid"
+            >
+              <span class="btn-text">Reset Sudoku</span>
+            </button>
+          </div>
+          
+          <div class="instructions">
+            <h3>Istruzioni</h3>
+            <ul>
+              <li>Inserisci numeri da 1 a 9 nelle celle vuote</li>
+              <li>Ogni riga, colonna e riquadro 3×3 deve contenere i numeri da 1 a 9 senza ripetizioni</li>
+              <li>Usa i tasti freccia per navigare nella griglia</li>
+              <li>Scegli un livello di difficoltà per risolvere il sudoku</li>
+            </ul>
+            <div class="difficulty-legend">
+              <div class="legend-item">
+                <span class="color-sample easy"></span>
+                <span>Facile: risolve quasi tutto</span>
+              </div>
+              <div class="legend-item">
+                <span class="color-sample medium"></span>
+                <span>Medio: risolve metà delle celle</span>
+              </div>
+              <div class="legend-item">
+                <span class="color-sample hard"></span>
+                <span>Difficile: risolve poche celle</span>
+              </div>
+              <div class="legend-item">
+                <span class="color-sample complete"></span>
+                <span>Completo: risolve tutto</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <div class="controls">
-        <button 
-          v-if="isSolved || hasError"
-          class="btn reset-btn" 
-          @click="resetGrid"
-        >
-          <span class="btn-text">Reset Sudoku</span>
-        </button>
-      </div>
-      
-      <div v-if="errorMessage" class="error-message">
-        <span>{{ errorMessage }}</span>
-      </div>
-      
-      <div class="instructions">
-        <h3>Come giocare</h3>
-        <ul>
-          <li>Inserisci numeri da 1 a 9 nelle celle vuote</li>
-          <li>Ogni riga, colonna e riquadro 3×3 deve contenere i numeri da 1 a 9 senza ripetizioni</li>
-          <li>Usa i tasti freccia per navigare nella griglia</li>
-          <li>Scegli un livello di difficoltà per risolvere il sudoku</li>
-          <li><strong>Facile:</strong> risolve quasi tutto, lasciando poche celle</li>
-          <li><strong>Medio:</strong> risolve più celle, lasciando solo quelle più difficili</li>
-          <li><strong>Difficile:</strong> risolve solo le celle più semplici</li>
-          <li><strong>Completo:</strong> risolve l'intero puzzle</li>
-        </ul>
       </div>
     </div>
   </div>
@@ -440,6 +488,9 @@ body {
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   margin: 0;
   min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sudoku-container {
@@ -448,50 +499,91 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
   padding: 20px;
+  transition: all 0.3s ease;
+}
+
+/* Layout per desktop che entra tutto in una finestra senza scrollare */
+.desktop-layout {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+.desktop-layout .game-area {
+  height: calc(100vh - 40px);
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .game-area {
   width: 100%;
-  max-width: 800px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  max-width: 1400px;
   background-color: white;
-  border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.07);
   padding: 30px;
   margin: 20px 0;
+  transition: all 0.3s ease;
+}
+
+.header-section {
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .title {
   font-size: 2.5rem;
   font-weight: 700;
   color: #2c3e50;
-  margin-bottom: 30px;
-  text-align: center;
   position: relative;
+  display: inline-block;
+  margin: 0;
 }
 
 .title::after {
   content: '';
   position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60px;
+  bottom: -8px;
+  left: 0;
+  width: 100%;
   height: 4px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
   border-radius: 2px;
 }
 
+.content-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 70px);
+}
+
+@media (min-width: 1024px) {
+  .content-wrapper {
+    flex-direction: row;
+    gap: 30px;
+  }
+  
+  .sudoku-grid-container {
+    flex: 1;
+    max-width: 55%;
+  }
+  
+  .controls-section {
+    flex: 1;
+    max-width: 45%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-left: 20px;
+  }
+}
+
 .sudoku-grid-container {
-  position: relative;
+  margin-bottom: 30px;
   width: 100%;
-  max-width: 550px;
-  margin: 0 auto;
 }
 
 .sudoku-grid {
@@ -499,11 +591,12 @@ body {
   grid-template-rows: repeat(9, 1fr);
   background-color: #34495e;
   border: 3px solid #34495e;
-  border-radius: 5px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   aspect-ratio: 1 / 1;
   width: 100%;
-  max-width: 550px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .sudoku-row {
@@ -512,10 +605,10 @@ body {
 }
 
 .sudoku-cell {
-  background-color: #f9f9f9;
   position: relative;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   border: 1px solid #c4c4c4;
+  background-color: #f9f9f9;
 }
 
 /* Bordi più marcati per i quadratoni 3x3 */
@@ -534,6 +627,7 @@ body {
 
 .sudoku-cell.focused-cell {
   background-color: #e3f2fd;
+  box-shadow: inset 0 0 0 2px #3498db;
 }
 
 .sudoku-cell.error {
@@ -563,16 +657,18 @@ body {
 
 @media (min-width: 768px) {
   .sudoku-cell input {
-    font-size: 1.6rem;
+    font-size: 1.8rem;
   }
 }
 
 .sudoku-cell input.user-input {
   color: #2980b9;
+  font-weight: 700;
 }
 
 .sudoku-cell input.computer-solved {
-  color: #27ae60;
+  animation: solveFadeIn 0.5s ease forwards;
+  font-weight: 600;
 }
 
 .sudoku-cell input:disabled {
@@ -585,26 +681,32 @@ body {
   margin: 0;
 }
 
+.controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
 .controls {
   display: flex;
   justify-content: center;
-  margin-top: 30px;
   width: 100%;
 }
 
 .btn {
   position: relative;
-  padding: 12px 30px;
-  font-size: 1rem;
+  padding: 14px 30px;
+  font-size: 1.1rem;
   font-weight: 600;
   border: none;
-  border-radius: 30px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   z-index: 1;
-  min-width: 180px;
+  min-width: 200px;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -628,7 +730,7 @@ body {
 
 .btn:active {
   transform: translateY(2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .solve-btn {
@@ -646,120 +748,174 @@ body {
   z-index: 2;
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.solve-btn:not(.hide) {
-  animation: pulse 2s infinite;
-}
-
-.hide {
-  opacity: 0;
-  transform: scale(0);
-  transition: all 0.5s ease;
-}
-
 .error-message {
-  margin-top: 20px;
-  padding: 12px 20px;
+  padding: 15px 20px;
   background-color: #ffecec;
   color: #e74c3c;
-  border-radius: 5px;
+  border-radius: 10px;
   font-weight: 500;
   text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-left: 5px solid #e74c3c;
   width: 100%;
-  max-width: 550px;
 }
 
 .instructions {
-  margin-top: 30px;
-  width: 100%;
-  max-width: 550px;
   background-color: #f8f9fa;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  height: 100%;
+  overflow: auto;
 }
 
 .instructions h3 {
   color: #2c3e50;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
   font-weight: 600;
-  border-bottom: 2px solid #eaeaea;
-  padding-bottom: 8px;
+  position: relative;
+  padding-bottom: 10px;
+}
+
+.instructions h3::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  border-radius: 2px;
 }
 
 .instructions ul {
   padding-left: 20px;
+  margin-bottom: 20px;
 }
 
 .instructions li {
   color: #555;
-  margin-bottom: 8px;
-  font-size: 0.95rem;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  position: relative;
 }
 
-/* Responsive Design */
-@media (max-width: 767px) {
-  .game-area {
-    padding: 20px 15px;
-  }
-  
-  .title {
-    font-size: 1.8rem;
-    margin-bottom: 20px;
-  }
-  
-  .sudoku-grid-container {
-    max-width: 100%;
-  }
-  
-  .btn {
-    padding: 10px 20px;
-    font-size: 0.9rem;
-    min-width: 150px;
-  }
-  
-  .instructions {
-    padding: 15px;
-  }
-  
-  .instructions h3 {
-    font-size: 1.1rem;
-  }
-  
-  .instructions li {
-    font-size: 0.85rem;
-  }
+.instructions li::before {
+  content: '•';
+  color: #3498db;
+  font-weight: bold;
+  display: inline-block;
+  width: 1em;
+  margin-left: -1em;
 }
 
-@media (max-width: 480px) {
-  .game-area {
-    padding: 15px 10px;
-  }
-  
-  .title {
-    font-size: 1.5rem;
-  }
-  
-  .btn {
-    padding: 8px 16px;
-    font-size: 0.8rem;
-    min-width: 130px;
+.difficulty-selector {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.difficulty-text {
+  color: #2c3e50;
+  font-weight: 500;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.difficulty-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+@media (min-width: 768px) {
+  .difficulty-buttons {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
-/* Animation for solved cells */
+.difficulty-btn {
+  padding: 12px 15px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.difficulty-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.difficulty-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.difficulty-btn.easy {
+  background: linear-gradient(135deg, #4CAF50, #2E7D32);
+}
+
+.difficulty-btn.medium {
+  background: linear-gradient(135deg, #2196F3, #1565C0);
+}
+
+.difficulty-btn.hard {
+  background: linear-gradient(135deg, #FF9800, #EF6C00);
+}
+
+.difficulty-btn.complete {
+  background: linear-gradient(135deg, #9C27B0, #6A1B9A);
+}
+
+.difficulty-legend {
+  margin-top: 20px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.legend-item:last-child {
+  margin-bottom: 0;
+}
+
+.color-sample {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.color-sample.easy {
+  background-color: #4CAF50;
+}
+
+.color-sample.medium {
+  background-color: #2196F3;
+}
+
+.color-sample.hard {
+  background-color: #FF9800;
+}
+
+.color-sample.complete {
+  background-color: #9C27B0;
+}
+
 @keyframes solveFadeIn {
   0% {
     opacity: 0;
@@ -771,133 +927,4 @@ body {
   }
 }
 
-.computer-solved {
-  animation: solveFadeIn 0.3s ease forwards;
-}
-
-/* Error animation */
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-2px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(2px);
-  }
-}
-
-.error {
-  animation: shake 0.5s ease;
-}
-
-.difficulty-selector {
-  margin-top: 25px;
-  width: 100%;
-  max-width: 550px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.difficulty-text {
-  font-size: 1.1rem;
-  color: #2c3e50;
-  margin-bottom: 12px;
-  font-weight: 500;
-}
-
-.difficulty-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.difficulty-btn {
-  flex: 1;
-  min-width: 120px;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 20px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  position: relative;
-  overflow: hidden;
-  color: white;
-}
-
-.difficulty-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3));
-  transform: translateX(-100%);
-  transition: all 0.3s ease;
-  z-index: 0;
-}
-
-.difficulty-btn:hover::before {
-  transform: translateX(0);
-}
-
-.difficulty-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.difficulty-btn.easy {
-  background: linear-gradient(90deg, #4CAF50, #8BC34A);
-}
-
-.difficulty-btn.medium {
-  background: linear-gradient(90deg, #2196F3, #03A9F4);
-}
-
-.difficulty-btn.hard {
-  background: linear-gradient(90deg, #FF9800, #FFC107);
-}
-
-.difficulty-btn.complete {
-  background: linear-gradient(90deg, #9C27B0, #673AB7);
-}
-
-@media (max-width: 767px) {
-  .difficulty-buttons {
-    flex-direction: column;
-  }
-  
-  .difficulty-btn {
-    width: 100%;
-  }
-}
-
-@keyframes levelComplete {
-  0% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-}
-
-.difficulty-btn:hover {
-  animation: levelComplete 1.5s infinite;
-}
 </style>
